@@ -61,8 +61,9 @@ fi
 notify_saved() {
   local fp="$1"
   local msg="$2"
+  local skip_annotate="${3:-}"
   local notify_actions=(-A "open=Open File" -A "folder=Open Folder")
-  [[ -z "${args[--annotate]}" ]] && notify_actions+=(-A "annotate=Annotate")
+  [[ -z "${args[--annotate]}" && -z "$skip_annotate" ]] && notify_actions+=(-A "annotate=Annotate")
 
   local action
   action=$(notify-send "Screenshot saved" "$msg" \
@@ -79,6 +80,7 @@ notify_saved() {
     annotate)
       satty --filename "$fp" --output-filename "$fp" \
         --actions-on-enter save-to-file --early-exit --disable-notifications
+      notify_saved "$fp" "Annotated image saved in <i>${fp}</i>." "skip"
       ;;
   esac
 }
