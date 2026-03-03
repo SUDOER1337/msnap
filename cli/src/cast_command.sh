@@ -1,8 +1,8 @@
-output_dir="${args[--output]:-${ini[output_dir]:-${XDG_VIDEOS_DIR:-$HOME/Videos}/Screencasts}}"
-filename_pattern="${args[--filename]:-${ini[filename_pattern]:-%Y%m%d%H%M%S.mp4}}"
+output_dir="${args[--output]:-${ini[cast_output_dir]:-${XDG_VIDEOS_DIR:-$HOME/Videos}/Screencasts}}"
+filename_pattern="${args[--filename]:-${ini[cast_filename_pattern]:-%Y%m%d%H%M%S.mp4}}"
 toggle_mode="${args[--toggle]:-}"
-recording_pid_file="/tmp/mcast.pid"
-recording_filepath_file="/tmp/mcast.filepath"
+recording_pid_file="/tmp/msnap-cast.pid"
+recording_filepath_file="/tmp/msnap-cast.filepath"
 
 build_cmd() {
   local geometry=""
@@ -29,19 +29,6 @@ build_cmd() {
   cmd+=(-o "$filepath")
 }
 
-notify_saved() {
-  local fp="$1"
-  local action
-  action=$(notify-send "Recording saved" "Recording saved in <i>${fp}</i>." \
-    -a mcast \
-    -A "open=Open File" \
-    -A "folder=Open Folder")
-  case "$action" in
-    open)   xdg-open "$fp" >/dev/null 2>&1 ;;
-    folder) xdg-open "$(dirname "$fp")" >/dev/null 2>&1 ;;
-  esac
-}
-
 if [[ -n "$toggle_mode" ]]; then
   if [[ -f "$recording_pid_file" ]]; then
     pid=$(<"$recording_pid_file")
@@ -53,7 +40,7 @@ if [[ -n "$toggle_mode" ]]; then
     if [[ -f "$recording_filepath_file" ]]; then
       filepath=$(<"$recording_filepath_file")
       rm -f "$recording_filepath_file"
-      notify_saved "$filepath"
+      notify_saved "$filepath" "Recording saved in <i>${filepath}</i>." "cast"
     fi
   else
     filename="$(date +"$filename_pattern")"
@@ -70,5 +57,5 @@ else
   mkdir -p "$output_dir"
   build_cmd
   "${cmd[@]}"
-  notify_saved "$filepath"
+  notify_saved "$filepath" "Recording saved in <i>${filepath}</i>." "cast"
 fi

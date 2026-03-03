@@ -187,8 +187,8 @@ PanelWindow {
     isScreenshotMode ? executeScreenshot() : executeRecording();
   }
 
-  function buildCommandArgs(baseCommand, isScreenshot) {
-    const args = [Config[baseCommand + "Path"]];
+  function buildCommandArgs(subcommand, isScreenshot) {
+    const args = [Config.msnapPath, subcommand];
 
     // Add geometry arguments
     if (captureMode === "region" && isRegionSelected) {
@@ -214,16 +214,16 @@ PanelWindow {
   }
 
   function executeScreenshot() {
-    Quickshell.execDetached(buildCommandArgs("mshot", true));
+    Quickshell.execDetached(buildCommandArgs("shot", true));
     close();
   }
 
   function executeRecording() {
     if (isRecordingActive) {
-      Quickshell.execDetached([Config.mcastPath, "--toggle"]);
+      Quickshell.execDetached([Config.msnapPath, "cast", "--toggle"]);
       return;
     }
-    const args = buildCommandArgs("mcast", false);
+    const args = buildCommandArgs("cast", false);
     args.push("--toggle");
     Quickshell.execDetached(args);
     isRecordingActive = true;
@@ -234,7 +234,7 @@ PanelWindow {
     if (!isRecordingActive) {
       return;
     }
-    Quickshell.execDetached([Config.mcastPath, "--toggle"]);
+    Quickshell.execDetached([Config.msnapPath, "cast", "--toggle"]);
     isRecordingActive = false;
     if (!root.visible) {
       quitTimer.start();

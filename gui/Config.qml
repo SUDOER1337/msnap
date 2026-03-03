@@ -28,9 +28,8 @@ Singleton {
   // Paths - centralized configuration
   readonly property string homePath: Quickshell.env("HOME")
   readonly property string configPath: homePath + "/.config/msnap/gui.conf"
-  readonly property string mshotPath: homePath + "/.local/bin/mshot"
-  readonly property string mcastPath: homePath + "/.local/bin/mcast"
-  readonly property string pidFilePath: "/tmp/mcast.pid"
+  readonly property string msnapPath: homePath + "/.local/bin/msnap"
+  readonly property string pidFilePath: "/tmp/msnap-cast.pid"
 
   // UI Constants
   readonly property int panelWidth: 276

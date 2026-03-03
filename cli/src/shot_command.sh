@@ -2,8 +2,8 @@ if [[ ${args[--only-copy]} ]]; then
   filepath="$(mktemp --suffix=.png)"
   trap 'rm -f "$filepath"' EXIT
 else
-  output_dir="${args[--output]:-${ini[output_dir]:-${XDG_PICTURES_DIR:-$HOME/Pictures}/Screenshots}}"
-  filename_pattern="${args[--filename]:-${ini[filename_pattern]:-%Y%m%d%H%M%S.png}}"
+  output_dir="${args[--output]:-${ini[shot_output_dir]:-${XDG_PICTURES_DIR:-$HOME/Pictures}/Screenshots}}"
+  filename_pattern="${args[--filename]:-${ini[shot_filename_pattern]:-%Y%m%d%H%M%S.png}}"
   filename="$(date +"$filename_pattern")"
   filepath="$output_dir/$filename"
   mkdir -p "$output_dir"
@@ -12,7 +12,7 @@ fi
 cmd=(grim)
 
 use_pointer=""
-{ [[ ${ini[pointer_default]} == true ]] || [[ ${args[--pointer]} ]]; } && use_pointer=true
+{ [[ ${ini[shot_pointer_default]} == true ]] || [[ ${args[--pointer]} ]]; } && use_pointer=true
 [[ $use_pointer ]] && cmd+=(-c)
 
 if [[ ${args[--window]} ]]; then
@@ -58,37 +58,10 @@ if [[ ${args[--annotate]} ]]; then
     --actions-on-enter save-to-file --early-exit --disable-notifications
 fi
 
-notify_saved() {
-  local fp="$1"
-  local msg="$2"
-  local skip_annotate="${3:-}"
-  local notify_actions=(-A "open=Open File" -A "folder=Open Folder")
-  [[ -z "${args[--annotate]}" && -z "$skip_annotate" ]] && notify_actions+=(-A "annotate=Annotate")
-
-  local action
-  action=$(notify-send "Screenshot saved" "$msg" \
-    -i "$fp" -a mshot \
-    "${notify_actions[@]}")
-
-  case "$action" in
-    open)
-      xdg-open "$fp" >/dev/null 2>&1
-      ;;
-    folder)
-      xdg-open "$(dirname "$fp")" >/dev/null 2>&1
-      ;;
-    annotate)
-      satty --filename "$fp" --output-filename "$fp" \
-        --actions-on-enter save-to-file --early-exit --disable-notifications
-      notify_saved "$fp" "Annotated image saved in <i>${fp}</i>." "skip"
-      ;;
-  esac
-}
-
 if [[ ${args[--only-copy]} ]]; then
   wl-copy < "$filepath"
   notify-send "Screenshot captured" "Image copied to the clipboard." \
-    -i "$filepath" -a mshot
+    -i "$filepath" -a msnap-shot
 else
   if [[ ! ${args[--no-copy]} ]]; then
     wl-copy < "$filepath"
@@ -96,5 +69,5 @@ else
   else
     message="Image saved in <i>${filepath}</i>."
   fi
-  notify_saved "$filepath" "$message"
+  notify_saved "$filepath" "$message" "shot"
 fi

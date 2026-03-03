@@ -1,0 +1,95 @@
+name: msnap
+help: Mango snap - screenshot and screencast tool
+version: 0.1.0
+
+commands:
+- name: shot
+  help: Take a screenshot
+  dependencies:
+    - grim
+    - slurp
+    - wl-copy
+    - notify-send
+    - mmsg
+    - wayfreeze
+  flags:
+  - long: --region
+    short: -r
+    help: Take screenshot of selected region (interactive selection)
+    conflicts: [--geometry, --window]
+  - long: --geometry
+    short: -g
+    arg: x,y WxH
+    help: Capture region with direct geometry
+    conflicts: [--region, --window]
+    validate: geometry_format
+  - long: --pointer
+    short: -p
+    help: Include pointer in screenshot
+  - long: --output
+    short: -o
+    arg: directory
+    help: Output directory for screenshot
+  - long: --filename
+    short: -f
+    arg: name
+    help: Output filename for screenshot
+  - long: --annotate
+    short: -a
+    help: Annotate the screenshot with Satty
+  - long: --window
+    short: -w
+    help: Capture screenshot of the active window
+    conflicts: [--region, --geometry]
+  - long: --no-copy
+    short: -n
+    help: Skip copying screenshot to clipboard
+  - long: --only-copy
+    short: -c
+    help: Copy screenshot to clipboard without saving file
+  - long: --freeze
+    short: -F
+    help: Freeze the screen before taking screenshot
+
+- name: cast
+  help: Record the screen
+  dependencies:
+    - gpu-screen-recorder
+    - slurp
+    - notify-send
+  flags:
+  - long: --region
+    short: -r
+    help: Record selected region (interactive selection)
+    conflicts: [--geometry]
+  - long: --geometry
+    short: -g
+    arg: x,y WxH
+    help: Record region with direct geometry
+    conflicts: [--region]
+    validate: geometry_format
+  - long: --toggle
+    short: -t
+    help: Toggle recording on/off
+  - long: --output
+    short: -o
+    arg: directory
+    help: Output directory for recording
+  - long: --filename
+    short: -f
+    arg: name
+    help: Output filename for recording
+  - long: --audio
+    short: -a
+    help: Record system audio
+  - long: --mic
+    short: -m
+    help: Record microphone
+  - long: --audio-device
+    short: -A
+    arg: device
+    help: System audio device (default - default_output)
+  - long: --mic-device
+    short: -M
+    arg: device
+    help: Microphone device (default - default_input)
