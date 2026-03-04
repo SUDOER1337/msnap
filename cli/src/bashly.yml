@@ -55,6 +55,7 @@ commands:
   help: Record the screen
   dependencies:
     - gpu-screen-recorder
+    - ffmpeg
     - slurp
     - notify-send
   flags:

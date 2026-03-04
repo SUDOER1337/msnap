@@ -25,6 +25,7 @@ https://github.com/user-attachments/assets/53a4c616-3a6f-4400-ae9c-a15e277e710f
   - [`satty`](https://github.com/gabm/Satty) (for annotations)
   - [`gpu-screen-recorder`](https://git.dec05eba.com/gpu-screen-recorder/) (for recording)
   - [`quickshell` (qs)](https://github.com/quickshell-mirror/quickshell) (for **gui**)
+  - [`ffmpeg`](https://git.ffmpeg.org/ffmpeg.git) (for thumbnail generation in cast notify)
 
 > **Note:** `wayfreeze` must be in your global PATH.
 

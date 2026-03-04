@@ -345,16 +345,23 @@ notify_saved() {
   local type="$3"
   local skip_annotate="${4:-}"
 
-  local title icon
+  local title icon thumb=""
   if [[ "$type" == "shot" ]]; then
     title="Screenshot saved"
     icon="$fp"
   else
     title="Recording saved"
-    icon="video-x-generic"
+    thumb="$(mktemp --suffix=.jpg)"
+    if ffmpeg -i "$fp" -vframes 1 -q:v 2 "$thumb" -y >/dev/null 2>&1; then
+      icon="$thumb"
+    else
+      icon="video-x-generic"
+      rm -f "$thumb"
+      thumb=""
+    fi
   fi
-  local app="msnap"
 
+  local app="msnap"
   local notify_actions=(-A "open=Open File" -A "folder=Open Folder")
   [[ "$type" == "shot" && -z "${args[--annotate]}" && -z "$skip_annotate" ]] \
     && notify_actions+=(-A "annotate=Annotate")
@@ -363,6 +370,8 @@ notify_saved() {
   action=$(notify-send "$title" "$msg" \
     -i "$icon" -a "$app" \
     "${notify_actions[@]}")
+
+  [[ -n "$thumb" ]] && rm -f "$thumb"
 
   case "$action" in
     open)
@@ -878,6 +887,14 @@ msnap_cast_parse_requirements() {
     missing_deps=1
   else
     deps['gpu-screen-recorder']="$(command -v gpu-screen-recorder | head -n1)"
+  fi
+
+  # :dependency.filter
+  if ! command -v ffmpeg >/dev/null 2>&1; then
+    printf "missing dependency: ffmpeg\n" >&2
+    missing_deps=1
+  else
+    deps['ffmpeg']="$(command -v ffmpeg | head -n1)"
   fi
 
   # :dependency.filter
