@@ -10,8 +10,6 @@ commands:
     - slurp
     - wl-copy
     - notify-send
-    - mmsg
-    - wayfreeze
   flags:
   - long: --region
     short: -r
