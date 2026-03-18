@@ -3,6 +3,7 @@ DESTDIR ?=
 BINDIR ?= $(PREFIX)/bin
 DATADIR ?= $(PREFIX)/share
 SYSCONFDIR ?= /etc/xdg
+LOCALSTATEDIR ?= /var/lib
 ICON_PATH ?= $(DATADIR)/icons/hicolor/scalable/apps/msnap.svg
 
 # Installation Directories
@@ -11,6 +12,9 @@ GUI_DIR = $(APP_DIR)/gui
 ICON_DIR = $(DESTDIR)$(DATADIR)/icons/hicolor/scalable/apps
 DESKTOP_DIR = $(DESTDIR)$(DATADIR)/applications
 CONFIG_DIR = $(DESTDIR)$(SYSCONFDIR)/msnap
+
+# Manifest
+MANIFEST = $(DESTDIR)$(LOCALSTATEDIR)/msnap/.manifest
 
 .PHONY: all install uninstall clean
 
@@ -47,14 +51,42 @@ install: build
 	install -m644 msnap.desktop $(DESKTOP_DIR)/msnap.desktop
 	install -m644 assets/icons/msnap.svg $(ICON_DIR)/msnap.svg
 
+	# Write manifest
+	@install -d $(DESTDIR)$(LOCALSTATEDIR)/msnap
+	@printf '%s\n' \
+		"$(DESTDIR)$(BINDIR)/msnap" \
+		"$(CONFIG_DIR)/msnap.conf" \
+		"$(CONFIG_DIR)/gui.conf" \
+		"$(GUI_DIR)/shell.qml" \
+		"$(GUI_DIR)/Config.qml" \
+		"$(GUI_DIR)/RegionSelector.qml" \
+		"$(GUI_DIR)/Icon.qml" \
+		"$(GUI_DIR)/icons/app-window.svg" \
+		"$(GUI_DIR)/icons/camera.svg" \
+		"$(GUI_DIR)/icons/crop.svg" \
+		"$(GUI_DIR)/icons/device-desktop.svg" \
+		"$(GUI_DIR)/icons/microphone.svg" \
+		"$(GUI_DIR)/icons/mouse.svg" \
+		"$(GUI_DIR)/icons/pencil.svg" \
+		"$(GUI_DIR)/icons/player-record.svg" \
+		"$(GUI_DIR)/icons/volume.svg" \
+		"$(DESKTOP_DIR)/msnap.desktop" \
+		"$(ICON_DIR)/msnap.svg" \
+		> $(MANIFEST)
+	@echo "Manifest written to $(MANIFEST)"
+
 uninstall:
-	@echo "Uninstalling msnap..."
-	rm -f $(DESTDIR)$(BINDIR)/msnap
-	rm -rf $(CONFIG_DIR)/msnap.conf
-	rm -rf $(CONFIG_DIR)/gui.conf
-	rm -rf $(APP_DIR)
-	rm -f $(DESKTOP_DIR)/msnap.desktop
-	rm -f $(ICON_DIR)/msnap.svg
+	@if [ ! -f "$(MANIFEST)" ]; then \
+		echo "Error: manifest not found at $(MANIFEST) — was msnap installed?"; \
+		exit 1; \
+	fi
+	@echo "Uninstalling msnap (using manifest)..."
+	@xargs rm -f < $(MANIFEST)
+	@sed 's|/[^/]*$$||' $(MANIFEST) | sort -ru | \
+		xargs -I{} rmdir --ignore-fail-on-non-empty {} 2>/dev/null || true
+	@rm -f $(MANIFEST)
+	@rmdir --ignore-fail-on-non-empty $(DESTDIR)$(LOCALSTATEDIR)/msnap 2>/dev/null || true
+	@echo "Done."
 
 clean:
 	rm -f msnap.desktop Config.qml.build msnap.build
