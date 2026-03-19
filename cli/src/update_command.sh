@@ -2,16 +2,8 @@ REPO="https://github.com/atheeq-rhxn/msnap"
 manifest="@MANIFEST_PATH@"
 binary_path="${BASH_SOURCE[0]}"
 
-if [[ "$binary_path" == /nix/store/* ]]; then
-  echo "Error: 'msnap update' is not supported for Nix-managed installations." >&2
-  echo "Update msnap by updating your nixpkgs channel or rebuilding." >&2
-  exit 1
-fi
-
-if [[ ! -f "$manifest" ]]; then
-  echo "Error: No manifest found. Was msnap installed with 'make install'?" >&2
-  exit 1
-fi
+nix_managed=false
+[[ "$binary_path" == /nix/store/* ]] && nix_managed=true
 
 if [[ -n "${args[--version]:-}" ]]; then
   target_version="${args[--version]#v}"
@@ -29,8 +21,28 @@ if [[ "${args[--check]:-}" ]]; then
     exit 0
   else
     echo "Update available: v${version} -> v${target_version}"
+    if [[ "$nix_managed" == true ]]; then
+      echo "To update your Nix-managed install, run:" >&2
+      echo "  nix flake update msnap  (in your system flake directory)" >&2
+      echo "  nixos-rebuild switch" >&2
+    fi
     exit 1
   fi
+fi
+
+if [[ "$nix_managed" == true ]]; then
+  echo "Error: 'msnap update' is not supported for Nix-managed installations." >&2
+  echo "To update, run:" >&2
+  echo "  nix flake update msnap  (in your system flake directory)" >&2
+  echo "  nixos-rebuild switch" >&2
+  echo "" >&2
+  echo "Tip: Use 'msnap update --check' to check for new versions without installing." >&2
+  exit 1
+fi
+
+if [[ ! -f "$manifest" ]]; then
+  echo "Error: No manifest found. Was msnap installed with 'make install'?" >&2
+  exit 1
 fi
 
 if [[ "$version" == "$target_version" && -z "${args[--force]:-}" ]]; then
