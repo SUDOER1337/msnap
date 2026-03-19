@@ -1,8 +1,7 @@
 {
   lib,
   stdenvNoCC,
-  fetchFromGitHub,
-  makeWrapper,
+  makeBinaryWrapper,
   bash,
   grim,
   slurp,
@@ -14,17 +13,19 @@
   ffmpeg,
   quickshell,
 }:
-stdenvNoCC.mkDerivation rec {
+stdenvNoCC.mkDerivation (finalAttrs: {
   pname = "msnap";
-  version = "0.2.1";
-  src = fetchFromGitHub {
-    owner = "atheeq-rhxn";
-    repo = "msnap";
-    rev = "v${version}";
-    hash = "sha256-Qf5YTk9md2BkLJ58fRby/XBuqyBh7GlC0/kc1ppcen8=";
+  version = lib.trim (builtins.readFile ../VERSION);
+
+  src = builtins.path {
+    path = ../.;
+    name = "source";
   };
-  nativeBuildInputs = [ makeWrapper ];
+
+  nativeBuildInputs = [ makeBinaryWrapper ];
+
   dontConfigure = true;
+
   buildPhase = ''
     make build \
       PREFIX="$out" \
@@ -32,6 +33,7 @@ stdenvNoCC.mkDerivation rec {
       DATADIR="$out/share" \
       SYSCONFDIR="$out/etc/xdg"
   '';
+
   installPhase = ''
     make install \
       PREFIX="$out" \
@@ -39,8 +41,10 @@ stdenvNoCC.mkDerivation rec {
       DATADIR="$out/share" \
       SYSCONFDIR="$out/etc/xdg" \
       DESTDIR=""
+
     substituteInPlace "$out/bin/msnap" \
       --replace-fail '#!/usr/bin/env bash' '#!${bash}/bin/bash'
+
     wrapProgram "$out/bin/msnap" \
       --prefix PATH : ${lib.makeBinPath [
         grim
@@ -54,6 +58,7 @@ stdenvNoCC.mkDerivation rec {
         quickshell
       ]}
   '';
+
   meta = {
     description = "Screenshot and screencast utility for mangowm";
     homepage = "https://github.com/atheeq-rhxn/msnap";
@@ -62,4 +67,4 @@ stdenvNoCC.mkDerivation rec {
     platforms = lib.platforms.linux;
     mainProgram = "msnap";
   };
-}
+})

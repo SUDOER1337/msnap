@@ -1,3 +1,4 @@
+VERSION != grep '^version:' cli/src/bashly.yml | awk '{print $$2}'
 PREFIX ?= /usr/local
 DESTDIR ?=
 BINDIR ?= $(PREFIX)/bin
@@ -17,7 +18,7 @@ CONFIG_DIR = $(DESTDIR)$(SYSCONFDIR)/msnap
 # Manifest
 MANIFEST = $(DESTDIR)$(STATEDIR)/msnap/.manifest
 
-.PHONY: all install uninstall clean
+.PHONY: all build install uninstall clean version
 
 all: build
 
@@ -26,8 +27,11 @@ build:
 	sed "s|@GUI_PATH@|$(DATADIR)/msnap/gui|g" assets/msnap.desktop.in | \
 		sed "s|@ICON_PATH@|$(ICON_PATH)|g" > msnap.desktop
 	sed "s|@BIN_PATH@|$(BINDIR)/msnap|g" gui/Config.qml > Config.qml.build
-	sed "s|@GUI_PATH@|$(DATADIR)/msnap/gui|g" cli/msnap | \
-		sed "s|@MANIFEST_PATH@|$(STATEDIR)/msnap/.manifest|g" > msnap.build
+	sed \
+		-e "s|@GUI_PATH@|$(DATADIR)/msnap/gui|g" \
+		-e "s|@VERSION@|$(VERSION)|g" \
+		-e "s|@MANIFEST_PATH@|$(MANIFEST)|g" \
+		cli/msnap > msnap.build
 
 install: build
 	@echo "Installing msnap..."
@@ -80,3 +84,7 @@ uninstall:
 
 clean:
 	rm -f msnap.desktop Config.qml.build msnap.build
+
+version:
+	@echo "$(VERSION)" > VERSION
+	@echo "VERSION set to $(VERSION)"
