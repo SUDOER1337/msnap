@@ -1459,7 +1459,7 @@ msnap_update_parse_requirements() {
 
 # :command.initialize
 initialize() {
-  declare -g version="0.1.0"
+  declare -g version="0.2.3"
   set -e
 
   # src/initialize.sh
