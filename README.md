@@ -42,38 +42,48 @@ cd msnap
 sudo make install PREFIX=/usr
 ```
 
-> `PREFIX=/usr` is recommended — icons and the desktop entry won't integrate correctly with `/usr/local`.
-
 ### NixOS install
 
-Add msnap's input in `flake.nix`:
+Add msnap's input and overlay in your `flake.nix`:
+
 ```nix
 {
   inputs = {
-    nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
+    nixpkgs.url = "github:NixOS/nixpkgs/nixpkgs-unstable";
 
     msnap = {
       url = "github:atheeq-rhxn/msnap";
       inputs.nixpkgs.follows = "nixpkgs";
     };
+  };
 
-    # Your other inputs...
+  outputs = { nixpkgs, msnap, ... }: {
+    nixosConfigurations.your-host = nixpkgs.lib.nixosSystem {
+      modules = [
+        { nixpkgs.overlays = [ msnap.overlays.default ]; }
+        ./configuration.nix
+      ];
+    };
   };
 }
 ```
 
-Install it by editing `configuration.nix`.
+Then add `msnap` to your packages in `configuration.nix`:
+
 ```nix
-environment.systemPackages = with pkgs; [
-  inputs.msnap.packages.${pkgs.system}.default
-  # Your other packages
-];
+environment.systemPackages = [ pkgs.msnap ];
+```
+
+Or for a standalone try without installing:
+
+```sh
+nix run github:atheeq-rhxn/msnap -- shot
 ```
 
 ### Uninstall
 
 ```sh
-sudo make uninstall PREFIX=/usr  # drop sudo for user install
+sudo make uninstall
 ```
 
 ---
@@ -103,18 +113,32 @@ msnap cast [OPTIONS]   # record the screen
 
 ### `msnap cast`
 
+`--toggle` is required — call it once to start recording, again to stop.
+
 | Flag | Argument | Description |
 |------|----------|-------------|
-| *(none)* | | Full screen |
+| `-t`, `--toggle` | | **Required.** Toggle recording on/off |
 | `-r`, `--region` | | Interactive region selection |
 | `-g`, `--geometry` | `X,Y WxH` | Fixed geometry region |
-| `-t`, `--toggle` | | Toggle recording on/off |
 | `-a`, `--audio` | | Record system audio |
 | `-m`, `--mic` | | Record microphone |
 | `-A`, `--audio-device` | `DEVICE` | System audio device (default: `default_output`) |
 | `-M`, `--mic-device` | `DEVICE` | Microphone device (default: `default_input`) |
 | `-o`, `--output` | `DIR` | Output directory |
 | `-f`, `--filename` | `NAME` | Output filename or pattern |
+
+---
+
+## Updating
+
+```sh
+msnap update            # update to latest
+msnap update --check    # check without installing
+msnap update --version x.x.x # install specific version
+msnap update --force    # reinstall current version
+```
+
+> NOTE: Not supported for Nix-managed installs — use `nix flake update` instead.
 
 ---
 
