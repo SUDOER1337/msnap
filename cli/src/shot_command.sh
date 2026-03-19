@@ -41,21 +41,26 @@ if [[ ${args[--freeze]} ]]; then
   pipe=$(mktemp -u).fifo
   mkfifo "$pipe"
   if [[ ${args[--region]} ]]; then
-    "${wayfreeze_cmd[@]}" --after-freeze-cmd "echo > $pipe" &
+    "${wayfreeze_cmd[@]}" --after-freeze-timeout 100 --after-freeze-cmd "echo > $pipe" &
     wayfreeze_pid=$!
     read -r < "$pipe"
     geometry=$(slurp -d)
-    [[ -z "$geometry" ]] && exit 1
+    if [[ -z "$geometry" ]]; then
+      trap - EXIT
+      kill $wayfreeze_pid 2>/dev/null || true
+      rm -f "$pipe"
+      exit 1
+    fi
     "${cmd[@]}" -g "$geometry" "$filepath"
   else
-    "${wayfreeze_cmd[@]}" --after-freeze-cmd "echo > $pipe" &
+    "${wayfreeze_cmd[@]}" --after-freeze-timeout 100 --after-freeze-cmd "echo > $pipe" &
     wayfreeze_pid=$!
     read -r < "$pipe"
     "${cmd[@]}" "$filepath"
   fi
+  trap - EXIT
   kill $wayfreeze_pid 2>/dev/null || true
   rm -f "$pipe"
-  trap - EXIT
 elif [[ ${args[--region]} ]]; then
   geometry=$(slurp -d)
   [[ -z "$geometry" ]] && exit 1
