@@ -5,7 +5,16 @@ binary_path="${BASH_SOURCE[0]}"
 nix_managed=false
 [[ "$binary_path" == /nix/store/* ]] && nix_managed=true
 
-if [[ -n "${args[--version]:-}" ]]; then
+if [[ "${args[--git]:-}" ]]; then
+  use_git=true
+  target_version=$(git ls-remote --heads "$REPO" main 2>/dev/null \
+    | awk '{print $1}') \
+    || { echo "Error: Could not reach GitHub. Check your internet connection." >&2; exit 1; }
+  if [[ -z "$target_version" ]]; then
+    echo "Error: Could not fetch latest commit from GitHub." >&2
+    exit 1
+  fi
+elif [[ -n "${args[--version]:-}" ]]; then
   target_version="${args[--version]#v}"
 else
   target_version=$(git ls-remote --tags --sort=version:refname "$REPO" 2>/dev/null \
@@ -59,9 +68,15 @@ fi
 tmp=$(mktemp -d)
 trap 'rm -rf "$tmp"' EXIT
 
-echo "Downloading msnap v${target_version}..."
-curl -fsSL "${REPO}/archive/refs/tags/v${target_version}.tar.gz" -o "${tmp}/msnap.tar.gz" \
-  || { echo "Error: Download failed." >&2; exit 1; }
+if [[ "$use_git" == true ]]; then
+  echo "Downloading msnap from commit ${target_version:0:7}..."
+  curl -fsSL "${REPO}/archive/${target_version}.tar.gz" -o "${tmp}/msnap.tar.gz" \
+    || { echo "Error: Download failed." >&2; exit 1; }
+else
+  echo "Downloading msnap v${target_version}..."
+  curl -fsSL "${REPO}/archive/refs/tags/v${target_version}.tar.gz" -o "${tmp}/msnap.tar.gz" \
+    || { echo "Error: Download failed." >&2; exit 1; }
+fi
 
 tar -xzf "${tmp}/msnap.tar.gz" -C "$tmp" \
   || { echo "Error: Failed to extract archive." >&2; exit 1; }
@@ -98,5 +113,10 @@ while IFS= read -r dest; do
   esac
 done < "$manifest"
 
-echo "msnap updated to v${target_version}."
-notify-send "msnap updated" "Updated to v${target_version}" -a msnap 2>/dev/null || true
+if [[ "$use_git" == true ]]; then
+  echo "msnap updated to commit ${target_version:0:7}."
+  notify-send "msnap updated" "Updated to commit ${target_version:0:7}" -a msnap 2>/dev/null || true
+else
+  echo "msnap updated to v${target_version}."
+  notify-send "msnap updated" "Updated to v${target_version}" -a msnap 2>/dev/null || true
+fi

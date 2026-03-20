@@ -242,9 +242,15 @@ msnap_update_usage() {
     echo
 
     # :flag.usage
+    printf "  %s\n" "--git, -g"
+    printf "    Update from latest commit\n"
+    printf "    %s\n" "Conflicts: --check, --version"
+    echo
+
+    # :flag.usage
     printf "  %s\n" "--version, -V VERSION"
     printf "    Install a specific version (e.g. x.x.x)\n"
-    printf "    %s\n" "Conflicts: --check"
+    printf "    %s\n" "Conflicts: --check, --git"
     echo
 
     # :command.usage_fixed_flags
@@ -679,7 +685,16 @@ msnap_update_command() {
   nix_managed=false
   [[ "$binary_path" == /nix/store/* ]] && nix_managed=true
 
-  if [[ -n "${args[--version]:-}" ]]; then
+  if [[ "${args[--git]:-}" ]]; then
+    use_git=true
+    target_version=$(git ls-remote --heads "$REPO" main 2>/dev/null \
+      | awk '{print $1}') \
+      || { echo "Error: Could not reach GitHub. Check your internet connection." >&2; exit 1; }
+    if [[ -z "$target_version" ]]; then
+      echo "Error: Could not fetch latest commit from GitHub." >&2
+      exit 1
+    fi
+  elif [[ -n "${args[--version]:-}" ]]; then
     target_version="${args[--version]#v}"
   else
     target_version=$(git ls-remote --tags --sort=version:refname "$REPO" 2>/dev/null \
@@ -733,9 +748,15 @@ msnap_update_command() {
   tmp=$(mktemp -d)
   trap 'rm -rf "$tmp"' EXIT
 
-  echo "Downloading msnap v${target_version}..."
-  curl -fsSL "${REPO}/archive/refs/tags/v${target_version}.tar.gz" -o "${tmp}/msnap.tar.gz" \
-    || { echo "Error: Download failed." >&2; exit 1; }
+  if [[ "$use_git" == true ]]; then
+    echo "Downloading msnap from commit ${target_version:0:7}..."
+    curl -fsSL "${REPO}/archive/${target_version}.tar.gz" -o "${tmp}/msnap.tar.gz" \
+      || { echo "Error: Download failed." >&2; exit 1; }
+  else
+    echo "Downloading msnap v${target_version}..."
+    curl -fsSL "${REPO}/archive/refs/tags/v${target_version}.tar.gz" -o "${tmp}/msnap.tar.gz" \
+      || { echo "Error: Download failed." >&2; exit 1; }
+  fi
 
   tar -xzf "${tmp}/msnap.tar.gz" -C "$tmp" \
     || { echo "Error: Failed to extract archive." >&2; exit 1; }
@@ -772,8 +793,13 @@ msnap_update_command() {
     esac
   done < "$manifest"
 
-  echo "msnap updated to v${target_version}."
-  notify-send "msnap updated" "Updated to v${target_version}" -a msnap 2>/dev/null || true
+  if [[ "$use_git" == true ]]; then
+    echo "msnap updated to commit ${target_version:0:7}."
+    notify-send "msnap updated" "Updated to commit ${target_version:0:7}" -a msnap 2>/dev/null || true
+  else
+    echo "msnap updated to v${target_version}."
+    notify-send "msnap updated" "Updated to v${target_version}" -a msnap 2>/dev/null || true
+  fi
 
 }
 
@@ -1434,12 +1460,29 @@ msnap_update_parse_requirements() {
         ;;
 
       # :flag.case
+      --git | -g)
+        # :flag.conflicts
+        for conflict in --check --version; do
+          if [[ -n "${args[$conflict]:-}" ]]; then
+            printf "conflicting options: %s cannot be used with %s\n" "$key" "$conflict" >&2
+            exit 1
+          fi
+        done
+
+        # :flag.case_no_arg
+        args['--git']=1
+        shift
+        ;;
+
+      # :flag.case
       --version | -V)
         # :flag.conflicts
-        if [[ -n "${args['--check']:-}" ]]; then
-          printf "conflicting options: %s cannot be used with %s\n" "$key" "--check" >&2
-          exit 1
-        fi
+        for conflict in --check --git; do
+          if [[ -n "${args[$conflict]:-}" ]]; then
+            printf "conflicting options: %s cannot be used with %s\n" "$key" "$conflict" >&2
+            exit 1
+          fi
+        done
 
         # :flag.case_arg
         if [[ -n ${2+x} ]]; then

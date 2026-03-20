@@ -112,8 +112,12 @@ commands:
   - long: --force
     short: -f
     help: Reinstall even if already up to date
+  - long: --git
+    short: -g
+    help: Update from latest commit
+    conflicts: [--check, --version]
   - long: --version
     short: -V
     arg: VERSION
     help: Install a specific version (e.g. x.x.x)
-    conflicts: [--check]
+    conflicts: [--check, --git]
