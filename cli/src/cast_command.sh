@@ -34,7 +34,7 @@ if [[ -f "$recording_pid_file" ]]; then
     kill -2 "$pid"
     wait "$pid" 2>/dev/null || true
   fi
-  rm -f "$recording_pid_file"
+  rm -f "$recording_pid_file" "/tmp/msnap-cast.starttime"
   if [[ -f "$recording_filepath_file" ]]; then
     filepath=$(<"$recording_filepath_file")
     rm -f "$recording_filepath_file"
@@ -45,6 +45,7 @@ else
   filepath="$output_dir/$filename"
   mkdir -p "$output_dir"
   echo "$filepath" > "$recording_filepath_file"
+  date +%s > "/tmp/msnap-cast.starttime"
   build_cmd
   "${cmd[@]}" > /dev/null 2>&1 &
   echo $! > "$recording_pid_file"
