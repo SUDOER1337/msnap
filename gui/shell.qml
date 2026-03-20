@@ -563,14 +563,35 @@ PanelWindow {
             }
           }
 
-          // Selection dimensions display
-          Text {
-            Layout.alignment: Qt.AlignHCenter
+          // Selection dimensions + re-select button
+          RowLayout {
+            Layout.fillWidth: true
             visible: root.captureMode === "region" && root.isRegionSelected
-            text: root.selectedWidth + " × " + root.selectedHeight
-            font.pixelSize: 11
-            font.weight: Font.DemiBold
-            color: root.accentColor
+            spacing: 6
+
+            Item { Layout.fillWidth: true }
+
+            Text {
+              text: root.selectedWidth + " × " + root.selectedHeight
+              font.pixelSize: 11
+              font.weight: Font.DemiBold
+              color: root.accentColor
+            }
+
+            ToggleButton {
+              iconName: "restore"
+              active: false
+              inactiveColor: root.accentColor
+              iconSize: 14
+              width: 22
+              height: 22
+              onClicked: {
+                regionSelector.open(root.regionSelX, root.regionSelY, root.regionSelW, root.regionSelH);
+                root.visible = false;
+              }
+            }
+
+            Item { Layout.fillWidth: true }
           }
 
           // Action buttons row
