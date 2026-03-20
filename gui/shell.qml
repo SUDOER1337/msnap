@@ -131,6 +131,11 @@ PanelWindow {
   property int selectedHeight: 0
   property bool isRecordingActive: false
 
+  property int regionSelX: 0
+  property int regionSelY: 0
+  property int regionSelW: 0
+  property int regionSelH: 0
+
   // Computed properties
   readonly property color accentColor: isScreenshotMode ? Config.ssAccent : Config.recAccent
   readonly property var captureModes: ["region", "window", "screen"]
@@ -141,13 +146,9 @@ PanelWindow {
     return Qt.rgba(c.r, c.g, c.b, 0.13);
   }
 
-  onCaptureModeChanged: isRegionSelected = false
-
   onIsScreenshotModeChanged: {
-    isRegionSelected = false;
-    if (!isScreenshotMode && captureMode === "window") {
+    if (!isScreenshotMode && captureMode === "window")
       captureMode = "region";
-    }
   }
 
   FileView {
@@ -180,7 +181,7 @@ PanelWindow {
 
   function executeAction() {
     if (captureMode === "region" && !isRegionSelected) {
-      regionSelector.open();
+      regionSelector.open(regionSelX, regionSelY, regionSelW, regionSelH);
       root.visible = false;
       return;
     }
@@ -250,6 +251,11 @@ PanelWindow {
                            selectedWidth = w;
                            selectedHeight = h;
                            isRegionSelected = true;
+                           const sf = regionSelector.scaleFactor || 1;
+                           regionSelX = Math.round(x / sf);
+                           regionSelY = Math.round(y / sf);
+                           regionSelW = Math.round(w / sf);
+                           regionSelH = Math.round(h / sf);
                            regionSelector.close();
 
                            if (quick) {

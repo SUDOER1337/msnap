@@ -24,6 +24,7 @@ Singleton {
 
   // Behavior
   property bool quickCapture: false
+  property bool rememberRegion: true
 
   // Paths
   readonly property string homePath: Quickshell.env("HOME")
@@ -42,18 +43,17 @@ Singleton {
   readonly property int defaultSpacing: 6
   readonly property int defaultBorderRadius: 8
 
-  property string configPath: Quickshell.env("MSNAP_GUI_CONFIG")
+  readonly property string configPath: Quickshell.env("MSNAP_GUI_CONFIG")
 
   FileView {
     id: configFile
-    path: root.configPath !== "" ? root.configPath : "/dev/null"
+    path: root.configPath
     watchChanges: true
-    onTextChanged: {
-      root.loadConfig(text())
-    }
+    onLoaded: root.loadConfig(text())
+    onFileChanged: reload()
   }
 
-  function loadConfig(data) {
+  function loadConfig(data: string) {
     if (!data)
       return;
 

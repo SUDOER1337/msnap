@@ -112,13 +112,31 @@ PanelWindow {
   readonly property int handleHitArea: 6
   readonly property int minSelectionSize: 8
 
-  function open() {
+  function open(restoreX, restoreY, restoreW, restoreH) {
     isSelecting = false;
     isMoving = false;
     isResizing = false;
     activeHandle = -1;
+
+    if (Config.rememberRegion && restoreW > 4 && restoreH > 4) {
+      const p = contentItem;
+      if (p) {
+        selX = Math.max(0, Math.min(restoreX, p.width - restoreW));
+        selY = Math.max(0, Math.min(restoreY, p.height - restoreH));
+        selW = Math.min(restoreW, p.width - selX);
+        selH = Math.min(restoreH, p.height - selY);
+      } else {
+        selX = restoreX;
+        selY = restoreY;
+        selW = restoreW;
+        selH = restoreH;
+      }
+    } else {
+      selX = 0; selY = 0; selW = 0; selH = 0;
+      defaultSelTimer.start();
+    }
+
     visible = true;
-    defaultSelTimer.start();
   }
 
   function close() {
