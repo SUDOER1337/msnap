@@ -6,692 +6,557 @@ import Quickshell.Wayland
 
 PanelWindow {
   id: root
-  component SmoothTransition: NumberAnimation {
-    duration: 200
-    easing.type: Easing.OutCubic
-  }
-
-  component ToggleButton: Rectangle {
-    id: toggleRoot
-
-    property string iconName: ""
-    property bool active: false
-    property color activeColor: Config.ssAccent
-    property color inactiveColor: Config.textMuted
-    property int iconSize: 20
-
-    signal clicked
-
-    width: Config.toggleButtonSize
-    height: Config.toggleButtonSize
-    radius: Config.defaultBorderRadius
-
-    color: active ? Qt.rgba(activeColor.r, activeColor.g, activeColor.b, 0.13) : Config.surfaceColor
-    border.width: active ? 1 : 0
-    border.color: activeColor
-
-    Icon {
-      anchors.centerIn: parent
-      name: toggleRoot.iconName
-      color: toggleRoot.active ? toggleRoot.activeColor : toggleRoot.inactiveColor
-      size: toggleRoot.iconSize
-    }
-
-    MouseArea {
-      anchors.fill: parent
-      cursorShape: Qt.PointingHandCursor
-      onClicked: toggleRoot.clicked()
-    }
-  }
-
-  component CaptureModeButton: Rectangle {
-    id: captureRoot
-
-    property string mode: ""
-    property string iconName: ""
-    property string label: ""
-    property bool isActive: false
-    property bool isEnabled: true
-    property color accentColor: Config.ssAccent
-    property int iconSize: 20
-
-    signal clicked
-
-    Layout.fillWidth: true
-    height: Config.buttonHeight
-    radius: Config.defaultBorderRadius
-
-    enabled: isEnabled
-    opacity: isEnabled ? 1.0 : 0.3
-
-    color: isActive ? Qt.rgba(accentColor.r, accentColor.g, accentColor.b, 0.13) : Config.surfaceColor
-    border.width: isActive ? 1 : 0
-    border.color: accentColor
-
-    ColumnLayout {
-      anchors.centerIn: parent
-      spacing: 5
-
-      Icon {
-        Layout.alignment: Qt.AlignHCenter
-        name: captureRoot.iconName
-        color: (captureRoot.isActive && captureRoot.isEnabled) ? captureRoot.accentColor : Config.textMuted
-        size: captureRoot.iconSize
-      }
-
-      Text {
-        Layout.alignment: Qt.AlignHCenter
-        text: captureRoot.label
-        font.pixelSize: 11
-        font.weight: (captureRoot.isActive && captureRoot.isEnabled) ? Font.DemiBold : Font.Normal
-        color: (captureRoot.isActive && captureRoot.isEnabled) ? captureRoot.accentColor : Config.textMuted
-      }
-    }
-
-    MouseArea {
-      anchors.fill: parent
-      enabled: captureRoot.isEnabled
-      cursorShape: captureRoot.isEnabled ? Qt.PointingHandCursor : Qt.ArrowCursor
-      onClicked: captureRoot.clicked()
-    }
-  }
 
   screen: Quickshell.screens[0]
-
-  anchors.top: true
-  anchors.left: true
-  anchors.right: true
-  anchors.bottom: true
-
+  anchors.top: true; anchors.left: true
+  anchors.right: true; anchors.bottom: true
   visible: true
   color: "transparent"
 
-  WlrLayershell.layer: WlrLayer.Overlay
+  WlrLayershell.layer:         WlrLayer.Overlay
   WlrLayershell.keyboardFocus: WlrKeyboardFocus.OnDemand
-  WlrLayershell.namespace: "msnap"
+  WlrLayershell.namespace:     "msnap"
   WlrLayershell.exclusionMode: ExclusionMode.Ignore
 
-  // State properties
-  property bool isScreenshotMode: true
+  //  State 
+  property bool   isLoaded:    false   // suppresses startup animation snap
+  property bool   isShot:      true
   property string captureMode: "region"
 
-  // Screenshot options
-  property bool includePointer: false
-  property bool includeAnnotation: false
+  property bool optPointer:  false
+  property bool optAnnotate: false
+  property bool optMic:      false
+  property bool optAudio:    false
 
-  // Recording options
-  property bool recordMic: false
-  property bool recordAudio: false
-
-  // Selection state
+  // selX/Y/W/H  — physical px (display in dim badge)
+  // regionSel*  — logical px  (passed to CLI -g flag)
   property bool isRegionSelected: false
-  property int selectedX: 0
-  property int selectedY: 0
-  property int selectedWidth: 0
-  property int selectedHeight: 0
-  property bool isRecordingActive: false
+  property int  selX: 0;       property int selY: 0
+  property int  selW: 0;       property int selH: 0
+  property int  regionSelX: 0; property int regionSelY: 0
+  property int  regionSelW: 0; property int regionSelH: 0
 
-  property int regionSelX: 0
-  property int regionSelY: 0
-  property int regionSelW: 0
-  property int regionSelH: 0
+  property bool isCasting:             false
+  property bool isTransitioningToCast: false
+  property bool showCastAlert:         false
+  property int  castSeconds:           0
+  property int  castStartEpoch:        0
 
-  // Computed properties
-  readonly property color accentColor: isScreenshotMode ? Config.ssAccent : Config.recAccent
-  readonly property var captureModes: ["region", "window", "screen"]
+  //  Derived 
+  readonly property color accent: isShot ? Config.ssAccent : Config.recAccent
+  readonly property color pillBg: Qt.rgba(Config.surfaceColor.r,
+                                          Config.surfaceColor.g,
+                                          Config.surfaceColor.b, 0.88)
 
-  // Helper function for accent background
-  function accentBg(mode) {
-    const c = mode ? Config.ssAccent : Config.recAccent;
-    return Qt.rgba(c.r, c.g, c.b, 0.13);
+  onIsShotChanged: { if (!isShot && captureMode === "window") captureMode = "region" }
+
+  //  Inline components 
+  component IconButton: Rectangle {
+    property string iconName:     ""
+    property bool   isActive:     false
+    property bool   isEnabled:    true
+    property bool   isPrimary:    false
+    property color  activeAccent: root.accent
+    signal clicked
+
+    width:  isPrimary ? 44 : 36
+    height: isPrimary ? 44 : 36
+    radius: height / 2
+    opacity: isEnabled ? 1.0 : 0.3
+    color: isPrimary  ? activeAccent
+         : isActive   ? Qt.rgba(activeAccent.r, activeAccent.g, activeAccent.b, 0.15)
+         : "transparent"
+    border.width: isActive && !isPrimary ? 1 : 0
+    border.color: activeAccent
+
+    Icon {
+      anchors.centerIn: parent
+      name:  parent.iconName
+      color: parent.isPrimary  ? Config.bgColor
+           : parent.isActive   ? parent.activeAccent
+           : Config.textMuted
+      size:  parent.isPrimary ? 22 : 20
+    }
+
+    MouseArea {
+      anchors.fill: parent
+      enabled:      parent.isEnabled
+      cursorShape:  parent.isEnabled ? Qt.PointingHandCursor : Qt.ArrowCursor
+      onClicked:    parent.clicked()
+    }
   }
 
-  onIsScreenshotModeChanged: {
-    if (!isScreenshotMode && captureMode === "window")
-      captureMode = "region";
+  component VDivider: Rectangle {
+    width: 1; height: 24
+    color: Config.borderColor
+    Layout.alignment: Qt.AlignVCenter
   }
 
+  //  Services 
+
+  // Startup guard — prevents behaviors from animating on initial render
+  Timer { interval: 50; running: true; onTriggered: root.isLoaded = true }
+
+  // Cast starttime — written by cast_command.sh as unix epoch
   FileView {
-    id: recordingPidFile
-    path: Config.pidFilePath
-    watchChanges: true
-    printErrors: false
-    onLoaded: isRecordingActive = true
+    id: startTimeFile
+    path: "/tmp/msnap-cast.starttime"
+    watchChanges: false; printErrors: false
+    onLoaded: {
+      const t = parseInt(text().trim(), 10)
+      if (!isNaN(t)) root.castStartEpoch = t
+    }
+  }
+
+  // Cast elapsed timer — derives from epoch when available, increments otherwise
+  Timer {
+    interval: 1000; repeat: true; running: root.isCasting
+    onTriggered: root.castSeconds = root.castStartEpoch > 0
+      ? Math.floor(Date.now() / 1000) - root.castStartEpoch
+      : root.castSeconds + 1
+    onRunningChanged: {
+      if (running) { startTimeFile.reload() }
+      else { root.castSeconds = 0; root.castStartEpoch = 0 }
+    }
+  }
+
+  // Cast launch — brief animation then exec
+  Timer {
+    id: castTransitionTimer
+    interval: 400; repeat: false
+    onTriggered: {
+      isTransitioningToCast = false
+      const a = buildArgs("cast", false)
+      a.push("--toggle")
+      Quickshell.execDetached(a)
+      isCasting = true
+      root.visible = false
+    }
+  }
+
+  // PID watcher — source of truth for cast state
+  FileView {
+    path: Config.pidFilePath; watchChanges: true; printErrors: false
+    onLoaded: {
+      root.isCasting = true
+      root.showCastAlert = true
+      startTimeFile.reload()
+      castAlertTimer.start()
+    }
     onLoadFailed: {
-      if (isRecordingActive) {
-        isRecordingActive = false;
-        if (!root.visible) {
-          quitTimer.start();
-        }
+      if (root.isCasting) {
+        root.isCasting = false
+        if (!root.visible) quitTimer.start()
       }
     }
   }
 
-  Timer {
-    id: quitTimer
-    interval: 600
-    repeat: false
-    onTriggered: Qt.quit()
+  Timer { id: quitTimer;      interval: 600;  repeat: false; onTriggered: Qt.quit() }
+  Timer { id: castAlertTimer; interval: 2000; repeat: false
+    onTriggered: { root.showCastAlert = false; root.visible = false }
   }
 
-  function close() {
-    visible = false;
-    Qt.quit();
+  //  Helpers 
+  function close() { visible = false; if (!isCasting) Qt.quit() }
+
+  function formatTime(s) {
+    const m = Math.floor(s / 60), sec = s % 60
+    return (m   < 10 ? "0" : "") + m   + ":"
+         + (sec < 10 ? "0" : "") + sec
+  }
+
+  function buildArgs(sub, forShot) {
+    const a = [Config.msnapPath, sub]
+    if (captureMode === "region" && isRegionSelected)
+      a.push("-g", `${regionSelX},${regionSelY} ${regionSelW}x${regionSelH}`)
+    else if (captureMode === "window")
+      a.push("-w")
+    if (forShot) {
+      if (optPointer)  a.push("-p")
+      if (optAnnotate) a.push("-a")
+    } else {
+      if (optMic)   a.push("-m")
+      if (optAudio) a.push("-a")
+    }
+    return a
   }
 
   function executeAction() {
     if (captureMode === "region" && !isRegionSelected) {
-      regionSelector.open(regionSelX, regionSelY, regionSelW, regionSelH);
-      root.visible = false;
-      return;
+      regionSelector.open(regionSelX, regionSelY, regionSelW, regionSelH)
+      root.visible = false
+      return
     }
-    isScreenshotMode ? executeScreenshot() : executeRecording();
+    isShot ? doShot() : doCast()
   }
 
-  function buildCommandArgs(subcommand, isScreenshot) {
-    const args = [Config.msnapPath, subcommand];
-
-    // Add geometry arguments
-    if (captureMode === "region" && isRegionSelected) {
-      args.push("-g", `${selectedX},${selectedY} ${selectedWidth}x${selectedHeight}`);
-    } else if (captureMode === "window") {
-      args.push("-w");
-    }
-
-    // Add mode-specific flags
-    if (isScreenshot) {
-      if (includePointer)
-        args.push("-p");
-      if (includeAnnotation)
-        args.push("-a");
-    } else {
-      if (recordMic)
-        args.push("-m");
-      if (recordAudio)
-        args.push("-a");
-    }
-
-    return args;
+  function doShot() {
+    Quickshell.execDetached(buildArgs("shot", true))
+    close()
   }
 
-  function executeScreenshot() {
-    Quickshell.execDetached(buildCommandArgs("shot", true));
-    close();
+  function doCast() {
+    if (isCasting) return   // already recording — pill handles stop
+    isTransitioningToCast = true
+    castTransitionTimer.start()
   }
 
-  function executeRecording() {
-    if (isRecordingActive) {
-      Quickshell.execDetached([Config.msnapPath, "cast", "--toggle"]);
-      return;
-    }
-    const args = buildCommandArgs("cast", false);
-    args.push("--toggle");
-    Quickshell.execDetached(args);
-    isRecordingActive = true;
-    root.visible = false;
+  function reEditRegion() {
+    regionSelector.open(regionSelX, regionSelY, regionSelW, regionSelH)
+    root.visible = false
   }
 
-  function stopRecording() {
-    if (!isRecordingActive) {
-      return;
-    }
-    Quickshell.execDetached([Config.msnapPath, "cast", "--toggle"]);
-    isRecordingActive = false;
-    if (!root.visible) {
-      quitTimer.start();
-    }
+  function stopCast() {
+    if (!isCasting) return
+    Quickshell.execDetached([Config.msnapPath, "cast", "--toggle"])
+    isCasting = false
+    if (!root.visible) quitTimer.start()
   }
 
+  //  Region selector 
   RegionSelector {
     id: regionSelector
-
     onSelectionComplete: (x, y, w, h, quick) => {
-                           selectedX = x;
-                           selectedY = y;
-                           selectedWidth = w;
-                           selectedHeight = h;
-                           isRegionSelected = true;
-                           const sf = regionSelector.scaleFactor || 1;
-                           regionSelX = Math.round(x / sf);
-                           regionSelY = Math.round(y / sf);
-                           regionSelW = Math.round(w / sf);
-                           regionSelH = Math.round(h / sf);
-                           regionSelector.close();
-
-                           if (quick) {
-                             root.visible = false;
-                             root.executeAction();
-                           } else {
-                             root.visible = true;
-                           }
-                         }
-
+      selX = x; selY = y; selW = w; selH = h
+      isRegionSelected = true
+      const sf = scaleFactor || 1
+      regionSelX = Math.round(x / sf); regionSelY = Math.round(y / sf)
+      regionSelW = Math.round(w / sf); regionSelH = Math.round(h / sf)
+      close()
+      root.visible = true
+      if (quick) root.executeAction()
+    }
     onCancelled: root.visible = true
   }
 
+  // ══════════════════════════════════════════════════════
+  // RECORDING PILL
+  // Collapsed: 6 × 44 px red bar, anchored bottom-right
+  // Hover: expands to show elapsed time + stop button
+  // ══════════════════════════════════════════════════════
   PanelWindow {
     id: recordingIndicator
-
     screen: Quickshell.screens[0]
-    anchors.top: true
-    anchors.right: true
-
-    visible: isRecordingActive
+    anchors.bottom: true; anchors.right: true
+    visible: root.isCasting && !root.isTransitioningToCast
     color: "transparent"
+    implicitWidth: 240; implicitHeight: 120
 
-    implicitWidth: 72
-    implicitHeight: 88
-
-    WlrLayershell.layer: WlrLayer.Top
+    WlrLayershell.layer:         WlrLayer.Top
     WlrLayershell.keyboardFocus: WlrKeyboardFocus.OnDemand
-    WlrLayershell.namespace: "msnap"
+    WlrLayershell.namespace:     "msnap"
     WlrLayershell.exclusionMode: ExclusionMode.Ignore
-
-    property bool hovered: false
 
     Item {
       anchors.fill: parent
-      anchors.topMargin: 32
-      anchors.rightMargin: 12
-      focus: true
-
-      onVisibleChanged: if (visible)
-                          forceActiveFocus()
-      Component.onCompleted: if (visible)
-                               forceActiveFocus()
+      anchors.bottomMargin: 40; anchors.rightMargin: 12
 
       Rectangle {
-        anchors.right: parent.right
-        anchors.verticalCenter: parent.verticalCenter
-        width: recordingIndicator.hovered ? 52 : 6
-        height: recordingIndicator.hovered ? 52 : 38
-        radius: recordingIndicator.hovered ? 9 : 3
-        color: Config.recAccent
+        id: pill
+        anchors.bottom: parent.bottom; anchors.right: parent.right
 
-        Behavior on width {
-          SmoothTransition {}
-        }
-        Behavior on height {
-          SmoothTransition {}
-        }
-        Behavior on radius {
-          SmoothTransition {}
-        }
+        width:  pillHover.containsMouse ? 150 : 6
+        height: 44
+        radius: pillHover.containsMouse ? 22  : 3
 
-        Rectangle {
-          anchors.centerIn: parent
-          width: 14
-          height: 14
-          radius: 2
-          color: Config.bgColor
-          opacity: recordingIndicator.hovered ? 1.0 : 0.0
+        color:        root.pillBg
+        border.width: 1
+        border.color: Config.recAccent
+        clip: true
 
-          Behavior on opacity {
-            NumberAnimation {
-              duration: 150
+        Behavior on width  { NumberAnimation { duration: 250; easing.type: Easing.OutCubic } }
+        Behavior on radius { NumberAnimation { duration: 250; easing.type: Easing.OutCubic } }
+
+        RowLayout {
+          anchors.right: parent.right; anchors.top: parent.top; anchors.bottom: parent.bottom
+          width: 150; spacing: 12
+          opacity: pillHover.containsMouse ? 1.0 : 0.0
+          Behavior on opacity { NumberAnimation { duration: 200 } }
+
+          // Pulsing dot
+          Rectangle {
+            width: 10; height: 10; radius: 5
+            color: Config.recAccent
+            Layout.leftMargin: 16
+            SequentialAnimation on opacity {
+              running: pillHover.containsMouse && root.isCasting
+              loops: Animation.Infinite
+              NumberAnimation { to: 0.3; duration: 800; easing.type: Easing.InOutSine }
+              NumberAnimation { to: 1.0; duration: 800; easing.type: Easing.InOutSine }
             }
           }
-        }
 
-        SequentialAnimation on opacity {
-          running: !recordingIndicator.hovered && recordingIndicator.visible
-          loops: Animation.Infinite
-
-          NumberAnimation {
-            to: 0.5
-            duration: 900
-            easing.type: Easing.InOutSine
+          // Elapsed time
+          Text {
+            Layout.fillWidth: true
+            text:                root.formatTime(root.castSeconds)
+            color:               Config.textColor
+            font.pixelSize:      13; font.weight: Font.DemiBold
+            verticalAlignment:   Text.AlignVCenter
+            horizontalAlignment: Text.AlignHCenter
           }
-          NumberAnimation {
-            to: 1.0
-            duration: 900
-            easing.type: Easing.InOutSine
+
+          Rectangle { width: 1; height: 16; color: Config.borderColor }
+
+          // Stop button
+          Rectangle {
+            width: 32; height: 32; radius: 16
+            color: "transparent"; Layout.rightMargin: 8
+            Icon { anchors.centerIn: parent; name: "player-stop"; color: Config.recAccent; size: 16 }
           }
         }
 
         MouseArea {
-          anchors.fill: parent
-          hoverEnabled: true
+          id: pillHover
+          anchors.fill: parent; hoverEnabled: true
           cursorShape: Qt.PointingHandCursor
-          onEntered: recordingIndicator.hovered = true
-          onExited: recordingIndicator.hovered = false
-          onClicked: root.stopRecording()
+          onClicked: root.stopCast()
         }
       }
     }
   }
 
+  // ══════════════════════════════════════════════════════
+  // MAIN OVERLAY
+  // ══════════════════════════════════════════════════════
   Item {
     anchors.fill: parent
     focus: true
+    Component.onCompleted: forceActiveFocus()
+    onVisibleChanged: if (visible) forceActiveFocus()
 
-    // Navigation helper functions
-    function getAvailableModes() {
-      return root.captureModes.filter(mode => mode !== "window" || root.isScreenshotMode);
+    //  Keyboard 
+    //  Tab / Shift-Tab   toggle shot ↔ cast
+    //  H/L  ←/→          cycle capture target
+    //  S / V              shot / cast direct
+    //  R / W / F          region / window / fullscreen direct
+    //  P / E              shot: pointer / annotate
+    //  M / A              cast: mic / audio
+    //  Enter              execute
+    //  Esc                close panel
+    function cycleTarget(dir) {
+      const modes = root.isShot
+        ? ["region", "window", "screen"]
+        : ["region", "screen"]
+      const i = modes.indexOf(root.captureMode)
+      root.captureMode = modes[((i < 0 ? 0 : i) + dir + modes.length) % modes.length]
     }
 
-    function navigateMode(direction) {
-      const availableModes = getAvailableModes();
-      let currentIndex = availableModes.indexOf(root.captureMode);
-      if (currentIndex === -1)
-        currentIndex = 0;
+    Keys.onTabPressed:     root.isShot = !root.isShot
+    Keys.onBacktabPressed: root.isShot = !root.isShot
+    Keys.onReturnPressed:  root.executeAction()
+    Keys.onEnterPressed:   root.executeAction()
+    Keys.onEscapePressed:  root.close()
 
-      currentIndex = (currentIndex + direction + availableModes.length) % availableModes.length;
-      root.captureMode = availableModes[currentIndex];
-    }
-
-    function toggleMode() {
-      root.isScreenshotMode = !root.isScreenshotMode;
-    }
-
-    // Keyboard navigation
-    Keys.onLeftPressed: navigateMode(-1)
-    Keys.onRightPressed: navigateMode(1)
-
-    // Key handler lookup table
+    // Declared as property so the object is created once, not on every keypress
     readonly property var keyHandlers: ({
-                                          [Qt.Key_H]: () => navigateMode(-1),
-                                          [Qt.Key_L]: () => navigateMode(1),
-                                          [Qt.Key_J]: () => {
-                                            root.isScreenshotMode = false;
-                                          },
-                                          [Qt.Key_K]: () => {
-                                            root.isScreenshotMode = true;
-                                          },
-                                          [Qt.Key_P]: () => {
-                                            if (root.isScreenshotMode) {
-                                              root.includePointer = !root.includePointer;
-                                            }
-                                          },
-                                          [Qt.Key_E]: () => {
-                                            if (root.isScreenshotMode) {
-                                              root.includeAnnotation = !root.includeAnnotation;
-                                            }
-                                          },
-                                          [Qt.Key_M]: () => {
-                                            if (!root.isScreenshotMode) {
-                                              root.recordMic = !root.recordMic;
-                                            }
-                                          },
-                                          [Qt.Key_A]: () => {
-                                            if (!root.isScreenshotMode) {
-                                              root.recordAudio = !root.recordAudio;
-                                            }
-                                          }
-                                        })
+      [Qt.Key_H]:     () => cycleTarget(-1),
+      [Qt.Key_L]:     () => cycleTarget(1),
+      [Qt.Key_Left]:  () => cycleTarget(-1),
+      [Qt.Key_Right]: () => cycleTarget(1),
+      [Qt.Key_S]:     () => { root.isShot = true },
+      [Qt.Key_V]:     () => { root.isShot = false },
+      [Qt.Key_R]: () => {
+          if (root.captureMode === "region" && root.isRegionSelected)
+            root.reEditRegion()
+          else
+            root.captureMode = "region"
+        },
+      [Qt.Key_W]:     () => { if (root.isShot) root.captureMode = "window" },
+      [Qt.Key_F]:     () => { root.captureMode = "screen" },
+      [Qt.Key_P]:     () => { if (root.isShot)  root.optPointer  = !root.optPointer },
+      [Qt.Key_E]:     () => { if (root.isShot)  root.optAnnotate = !root.optAnnotate },
+      [Qt.Key_M]:     () => { if (!root.isShot) root.optMic      = !root.optMic },
+      [Qt.Key_A]:     () => { if (!root.isShot) root.optAudio    = !root.optAudio },
+    })
 
     Keys.onPressed: event => {
-                      const handler = keyHandlers[event.key];
-                      if (handler) {
-                        handler();
-                        event.accepted = true;
-                      }
-                    }
+      // Shift+R — redraw region from scratch
+      if (event.key === Qt.Key_R && (event.modifiers & Qt.ShiftModifier)) {
+        root.isRegionSelected = false
+        root.captureMode = "region"
+        root.reEditRegion()
+        event.accepted = true
+        return
+      }
+      const fn = keyHandlers[event.key]
+      if (fn) { fn(); event.accepted = true }
+    }
 
-    Keys.onTabPressed: toggleMode()
-    Keys.onBacktabPressed: toggleMode()
-    Keys.onReturnPressed: root.executeAction()
-    Keys.onEnterPressed: root.executeAction()
-    Keys.onSpacePressed: root.executeAction()
-    Keys.onEscapePressed: root.close();
-
-    onVisibleChanged: if (visible)
-                        forceActiveFocus()
-    Component.onCompleted: forceActiveFocus()
+    onActiveFocusChanged: {
+      if (!activeFocus && visible && !regionSelector.visible && !root.isCasting)
+        root.close()
+    }
 
     MouseArea {
       anchors.fill: parent
       acceptedButtons: Qt.LeftButton | Qt.RightButton | Qt.MiddleButton
       onClicked: root.close()
 
+      //  Cast alert toast 
       Rectangle {
+        visible: root.showCastAlert
         anchors.horizontalCenter: parent.horizontalCenter
-        anchors.bottom: parent.bottom
-        anchors.bottomMargin: Config.panelBottomMargin
-        width: Config.panelWidth
-        height: layout.implicitHeight + 26
-        color: Config.bgColor
-        radius: 12
-        border.width: 1
-        border.color: Config.borderColor
+        anchors.bottom: parent.bottom; anchors.bottomMargin: 40
+        width: toastRow.implicitWidth + 24; height: 44; radius: 22
+        color: root.pillBg
+        border.color: Config.recAccent; border.width: 1
+        opacity: root.showCastAlert ? 1.0 : 0.0
+        Behavior on opacity { NumberAnimation { duration: 200 } }
 
-        MouseArea {
-          anchors.fill: parent
-          // Block clicks from propagating to parent
+        RowLayout {
+          id: toastRow
+          anchors.centerIn: parent; spacing: 8
+
+          Rectangle {
+            width: 8; height: 8; radius: 4; color: Config.recAccent
+            SequentialAnimation on opacity {
+              running: root.showCastAlert; loops: Animation.Infinite
+              NumberAnimation { to: 0.3; duration: 700; easing.type: Easing.InOutSine }
+              NumberAnimation { to: 1.0; duration: 700; easing.type: Easing.InOutSine }
+            }
+          }
+
+          Text {
+            text: "Recording in progress"
+            color: Config.textColor; font.pixelSize: 13; font.weight: Font.Medium
+          }
+        }
+      }
+
+      //  Floating toolbar 
+      Rectangle {
+        id: toolbar
+        visible: !root.showCastAlert
+        clip: true
+
+        readonly property real idleW: mainRow.implicitWidth + 24
+        readonly property real idleH: 56
+
+        x:      root.isTransitioningToCast ? parent.width - 6 - 12 : (parent.width - idleW) / 2
+        y:      parent.height - height - 40
+        width:  root.isTransitioningToCast ? 6    : idleW
+        height: root.isTransitioningToCast ? 44   : idleH
+        radius: root.isTransitioningToCast ? 3    : idleH / 2
+
+        color:        root.pillBg
+        border.color: root.isTransitioningToCast ? Config.recAccent : Config.borderColor
+        border.width: 1
+
+        Behavior on x      { enabled: root.isLoaded; NumberAnimation { duration: 450; easing.type: Easing.InOutCubic } }
+        Behavior on width  { enabled: root.isLoaded; NumberAnimation { duration: 450; easing.type: Easing.InOutCubic } }
+        Behavior on height { enabled: root.isLoaded; NumberAnimation { duration: 450; easing.type: Easing.InOutCubic } }
+        Behavior on radius { enabled: root.isLoaded; NumberAnimation { duration: 450; easing.type: Easing.InOutCubic } }
+
+        MouseArea { anchors.fill: parent }
+
+        RowLayout {
+          id: mainRow
+          anchors.centerIn: parent; spacing: 8
+          opacity: root.isTransitioningToCast ? 0.0 : 1.0
+          Behavior on opacity { enabled: root.isLoaded; NumberAnimation { duration: 250 } }
+
+          IconButton { iconName: "camera"; isActive: root.isShot;  activeAccent: Config.ssAccent;  onClicked: root.isShot = true }
+          IconButton { iconName: "video";  isActive: !root.isShot; activeAccent: Config.recAccent; onClicked: root.isShot = false }
+
+          VDivider {}
+
+          IconButton { iconName: "crop";           isActive: root.captureMode === "region"; onClicked: root.captureMode = "region" }
+          IconButton { iconName: "app-window";     isActive: root.captureMode === "window"; isEnabled: root.isShot; onClicked: root.captureMode = "window" }
+          IconButton { iconName: "device-desktop"; isActive: root.captureMode === "screen"; onClicked: root.captureMode = "screen" }
+
+          VDivider {}
+
+          IconButton {
+            iconName: root.isShot ? (root.optPointer  ? "pointer"    : "pointer-off")
+                                  : (root.optMic       ? "microphone" : "microphone-off")
+            isActive: root.isShot ? root.optPointer : root.optMic
+            onClicked: root.isShot ? (root.optPointer  = !root.optPointer)
+                                   : (root.optMic      = !root.optMic)
+          }
+          IconButton {
+            iconName: root.isShot ? (root.optAnnotate ? "pencil"  : "pencil-off")
+                                  : (root.optAudio     ? "volume"  : "volume-3")
+            isActive: root.isShot ? root.optAnnotate : root.optAudio
+            onClicked: root.isShot ? (root.optAnnotate = !root.optAnnotate)
+                                   : (root.optAudio    = !root.optAudio)
+          }
+
+          VDivider {}
+
+          IconButton {
+            isPrimary: true
+            iconName: root.captureMode === "region" && !root.isRegionSelected ? "crop"
+                    : root.isShot ? "camera-up" : "player-record"
+            onClicked: root.executeAction()
+          }
         }
 
-        ColumnLayout {
-          id: layout
-          anchors {
-            top: parent.top
-            left: parent.left
-            right: parent.right
-            margins: 12
-          }
-          spacing: 10
+        // Region badge — floats above toolbar when a region is selected
+        Rectangle {
+          visible: root.captureMode === "region" && root.isRegionSelected
+          anchors.horizontalCenter: parent.horizontalCenter
+          anchors.bottom: parent.top; anchors.bottomMargin: 8
+          width: regionBadgeRow.implicitWidth + 20; height: 28; radius: 14
+          color: root.pillBg
+          border.color: Config.borderColor; border.width: 1
 
-          // Mode selector (Screenshot / Record)
-          Rectangle {
-            Layout.fillWidth: true
-            height: 34
-            color: Config.surfaceColor
-            radius: Config.defaultBorderRadius
-
-            RowLayout {
-              anchors {
-                fill: parent
-                margins: 3
-              }
-              spacing: 3
-
-              Rectangle {
-                Layout.fillWidth: true
-                Layout.fillHeight: true
-                radius: 6
-                color: root.isScreenshotMode ? Config.ssAccent : "transparent"
-
-                Text {
-                  anchors.centerIn: parent
-                  text: "Screenshot"
-                  font.pixelSize: 12
-                  font.weight: root.isScreenshotMode ? Font.DemiBold : Font.Normal
-                  color: root.isScreenshotMode ? Config.bgColor : Config.textMuted
-                }
-
-                MouseArea {
-                  anchors.fill: parent
-                  cursorShape: Qt.PointingHandCursor
-                  onClicked: root.isScreenshotMode = true
-                }
-              }
-
-              Rectangle {
-                Layout.fillWidth: true
-                Layout.fillHeight: true
-                radius: 6
-                color: !root.isScreenshotMode ? Config.recAccent : "transparent"
-
-                Text {
-                  anchors.centerIn: parent
-                  text: "Record"
-                  font.pixelSize: 12
-                  font.weight: !root.isScreenshotMode ? Font.DemiBold : Font.Normal
-                  color: !root.isScreenshotMode ? Config.bgColor : Config.textMuted
-                }
-
-                MouseArea {
-                  anchors.fill: parent
-                  cursorShape: Qt.PointingHandCursor
-                  onClicked: root.isScreenshotMode = false
-                }
-              }
-            }
-          }
-
-          // Capture mode buttons
           RowLayout {
-            Layout.fillWidth: true
-            spacing: Config.defaultSpacing
+            id: regionBadgeRow
+            anchors.centerIn: parent; spacing: 0
 
-            CaptureModeButton {
-              mode: "region"
-              iconName: "crop"
-              label: "Region"
-              isActive: root.captureMode === "region"
-              accentColor: root.accentColor
-              onClicked: root.captureMode = "region"
-            }
-
-            CaptureModeButton {
-              mode: "window"
-              iconName: "app-window"
-              label: "Window"
-              isActive: root.captureMode === "window"
-              isEnabled: root.isScreenshotMode
-              accentColor: root.accentColor
-              onClicked: root.captureMode = "window"
-            }
-
-            CaptureModeButton {
-              mode: "screen"
-              iconName: "device-desktop"
-              label: "Screen"
-              isActive: root.captureMode === "screen"
-              accentColor: root.accentColor
-              iconSize: 22
-              onClicked: root.captureMode = "screen"
-            }
-          }
-
-          // Selection dimensions + re-select button
-          RowLayout {
-            Layout.fillWidth: true
-            visible: root.captureMode === "region" && root.isRegionSelected
-            spacing: 6
-
-            Item { Layout.fillWidth: true }
-
+            // Dimensions
             Text {
-              text: root.selectedWidth + " × " + root.selectedHeight
-              font.pixelSize: 11
-              font.weight: Font.DemiBold
-              color: root.accentColor
+              text: root.selW + " × " + root.selH
+              font.pixelSize: 11; font.weight: Font.DemiBold
+              color: root.accent
+              leftPadding: 4
             }
 
-            ToggleButton {
-              iconName: "restore"
-              active: false
-              inactiveColor: root.accentColor
-              iconSize: 14
-              width: 22
-              height: 22
-              onClicked: {
-                regionSelector.open(root.regionSelX, root.regionSelY, root.regionSelW, root.regionSelH);
-                root.visible = false;
-              }
+            // Position hint
+            Text {
+              text: "  @" + root.regionSelX + "," + root.regionSelY
+              font.pixelSize: 10; font.weight: Font.Normal
+              color: Config.textMuted
             }
 
-            Item { Layout.fillWidth: true }
-          }
-
-          // Action buttons row
-          RowLayout {
-            Layout.fillWidth: true
-            spacing: Config.defaultSpacing
-
-            // Main action button
+            // Separator
             Rectangle {
-              Layout.fillWidth: true
-              height: Config.toggleButtonSize
-              radius: Config.defaultBorderRadius
-              color: root.accentColor
+              width: 1; height: 14
+              color: Config.borderColor
+              Layout.leftMargin: 8; Layout.rightMargin: 4
+            }
+
+            // Re-select button
+            Rectangle {
+              width: 52; height: 20; radius: 10
+              color: reselHover.containsMouse
+                ? Qt.rgba(root.accent.r, root.accent.g, root.accent.b, 0.15)
+                : "transparent"
+              border.color: reselHover.containsMouse ? root.accent : "transparent"
+              border.width: 1
+              Layout.rightMargin: 2
 
               RowLayout {
-                anchors.centerIn: parent
-                spacing: 7
-
-                Icon {
-                  name: "crop"
-                  color: Config.bgColor
-                  size: 18
-                  visible: root.captureMode === "region" && !root.isRegionSelected
-                }
-
-                Icon {
-                  name: "camera"
-                  color: Config.bgColor
-                  size: 18
-                  visible: root.isScreenshotMode && !(root.captureMode === "region" && !root.isRegionSelected)
-                }
-
-                Icon {
-                  name: "player-record"
-                  color: Config.bgColor
-                  size: 16
-                  visible: !root.isScreenshotMode && !(root.captureMode === "region" && !root.isRegionSelected)
-                }
-
+                anchors.centerIn: parent; spacing: 4
+                Icon { name: "restore"; color: reselHover.containsMouse ? root.accent : Config.textMuted; size: 11 }
                 Text {
-                  text: {
-                    if (root.captureMode === "region" && !root.isRegionSelected) {
-                      return "Select Region";
-                    }
-                    return root.isScreenshotMode ? "Capture" : "Start Recording";
-                  }
-                  font.pixelSize: 12
-                  font.weight: Font.DemiBold
-                  color: Config.bgColor
+                  text: "Shift+R"
+                  font.pixelSize: 9
+                  color: reselHover.containsMouse ? root.accent : Config.textMuted
                 }
               }
 
               MouseArea {
+                id: reselHover
                 anchors.fill: parent
+                hoverEnabled: true
                 cursorShape: Qt.PointingHandCursor
-                onClicked: root.executeAction()
+                onClicked: root.reEditRegion()
               }
-            }
-
-            // Screenshot mode toggles
-            ToggleButton {
-              iconName: "pencil"
-              active: root.includeAnnotation
-              activeColor: Config.ssAccent
-              visible: root.isScreenshotMode
-              onClicked: root.includeAnnotation = !root.includeAnnotation
-            }
-
-            ToggleButton {
-              iconName: "mouse"
-              active: root.includePointer
-              activeColor: Config.ssAccent
-              visible: root.isScreenshotMode
-              onClicked: root.includePointer = !root.includePointer
-            }
-
-            // Recording mode toggles
-            ToggleButton {
-              iconName: "microphone"
-              active: root.recordMic
-              activeColor: Config.recAccent
-              visible: !root.isScreenshotMode
-              onClicked: root.recordMic = !root.recordMic
-            }
-
-            ToggleButton {
-              iconName: "volume"
-              active: root.recordAudio
-              activeColor: Config.recAccent
-              visible: !root.isScreenshotMode
-              onClicked: root.recordAudio = !root.recordAudio
             }
           }
         }
-      }
-    }
-
-    onActiveFocusChanged: {
-      if (!activeFocus && visible && !regionSelector.visible && !isRecordingActive) {
-        root.close();
       }
     }
   }
