@@ -197,10 +197,10 @@ PanelWindow {
         const a = [Config.msnapPath, sub]
         if (captureMode === "region" && regionSelector.hasSelection) {
             const sf = regionSelector.scaleFactor || 1.0
-            const rx = Math.round(regionSelector.selX / sf)
-            const ry = Math.round(regionSelector.selY / sf)
-            const rw = Math.round(regionSelector.selW / sf)
-            const rh = Math.round(regionSelector.selH / sf)
+            const rx = Math.round(regionSelector.selX * sf)
+            const ry = Math.round(regionSelector.selY * sf)
+            const rw = Math.round(regionSelector.selW * sf)
+            const rh = Math.round(regionSelector.selH * sf)
             a.push("-g", `${rx},${ry} ${rw}x${rh}`)
         } else if (captureMode === "window") {
             a.push("-w")
@@ -571,7 +571,7 @@ PanelWindow {
 
                         Text {
                             visible: root.captureMode === "region" && regionSelector.hasSelection
-                            text: regionSelector.selW + " × " + regionSelector.selH
+                            text: Math.round(regionSelector.selW * (regionSelector.scaleFactor || 1.0)) + " × " + Math.round(regionSelector.selH * (regionSelector.scaleFactor || 1.0))
                             font.pixelSize: 10
                             font.weight: Font.DemiBold
                             color: root.accent
