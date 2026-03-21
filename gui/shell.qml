@@ -351,6 +351,8 @@ PanelWindow {
 
         readonly property var keyHandlers: ({
             [Qt.Key_H]:     () => cycleTarget(-1),
+            [Qt.Key_J]:     () => { root.isShot = !root.isShot },
+            [Qt.Key_K]:     () => { root.isShot = !root.isShot },
             [Qt.Key_L]:     () => cycleTarget(1),
             [Qt.Key_Left]:  () => cycleTarget(-1),
             [Qt.Key_Right]: () => cycleTarget(1),
