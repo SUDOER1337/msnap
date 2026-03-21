@@ -31,7 +31,8 @@ stdenvNoCC.mkDerivation (finalAttrs: {
       PREFIX="$out" \
       BINDIR="$out/bin" \
       DATADIR="$out/share" \
-      SYSCONFDIR="$out/etc/xdg"
+      SYSCONFDIR="$out/etc/xdg" \
+      LOCALSTATEDIR="$out/var/lib"
   '';
 
   installPhase = ''
@@ -40,6 +41,7 @@ stdenvNoCC.mkDerivation (finalAttrs: {
       BINDIR="$out/bin" \
       DATADIR="$out/share" \
       SYSCONFDIR="$out/etc/xdg" \
+      LOCALSTATEDIR="$out/var/lib" \
       DESTDIR=""
 
     substituteInPlace "$out/bin/msnap" \
