@@ -25,6 +25,8 @@ PanelWindow {
     property string captureMode: "region"
     property bool isCollapsed: false
 
+    property string selectedWindowId: ""
+    property string selectedWindowTitle: ""
     property bool optPointer: false
     property bool optAnnotate: false
     property bool optMic: false
@@ -47,10 +49,15 @@ PanelWindow {
         if (!isLoaded) return
         if (captureMode === "region") {
             regionSelector.activate()
+            keyHandler.forceActiveFocus()
+        } else if (captureMode === "window") {
+            regionSelector.visible = false
+            root.isCollapsed = false
+            root.selectedWindowId = ""
         } else {
             regionSelector.visible = false
-            // Auto-uncollapse if the user switches to Window or Screen mode
             root.isCollapsed = false
+            keyHandler.forceActiveFocus()
         }
     }
 
@@ -101,6 +108,8 @@ PanelWindow {
             root.isLoaded = true
             if (root.captureMode === "region") {
                 regionSelector.activate()
+            } else if (root.captureMode === "window") {
+                root.selectedWindowId = ""
             }
         }
     }
@@ -124,10 +133,11 @@ PanelWindow {
             ? Math.floor(Date.now() / 1000) - root.castStartEpoch
             : root.castSeconds + 1
         onRunningChanged: {
-            if (running) { startTimeFile.reload() }
-            else { 
+            if (running) {
+                startTimeFile.reload()
+            } else {
                 root.castSeconds = 0
-                root.castStartEpoch = 0 
+                root.castStartEpoch = 0
             }
         }
     }
@@ -184,7 +194,7 @@ PanelWindow {
     function close() { 
         visible = false
         regionSelector.visible = false
-        if (!isCasting) Qt.quit() 
+        if (!isCasting) Qt.quit()
     }
 
     function formatTime(s) {
@@ -202,8 +212,8 @@ PanelWindow {
             const rw = Math.round(regionSelector.selW * sf)
             const rh = Math.round(regionSelector.selH * sf)
             a.push("-g", `${rx},${ry} ${rw}x${rh}`)
-        } else if (captureMode === "window") {
-            a.push("-w")
+        } else if (captureMode === "window" && selectedWindowId !== "") {
+            a.push("-w", selectedWindowId)
         }
         if (forShot) {
             if (optPointer) a.push("-p")
@@ -216,9 +226,8 @@ PanelWindow {
     }
 
     function executeAction() {
-        if (captureMode === "region" && !regionSelector.hasSelection) {
-            return 
-        }
+        if (captureMode === "region" && !regionSelector.hasSelection) return
+        if (captureMode === "window" && selectedWindowId === "") return
         isShot ? doShot() : doCast()
     }
 
@@ -325,6 +334,7 @@ PanelWindow {
     }
 
     Item {
+        id: keyHandler
         anchors.fill: parent
         focus: true
         Component.onCompleted: forceActiveFocus()
@@ -376,7 +386,7 @@ PanelWindow {
         }
 
         onActiveFocusChanged: {
-            if (!activeFocus && visible && !root.isCasting)
+            if (!activeFocus && visible && !root.isCasting && !windowPicker.visible)
                 root.close()
         }
 
@@ -384,7 +394,7 @@ PanelWindow {
         MouseArea {
             anchors.fill: parent
             acceptedButtons: Qt.LeftButton | Qt.RightButton | Qt.MiddleButton
-            enabled: !regionSelector.visible
+            enabled: !regionSelector.visible && !windowPicker.visible
             onClicked: root.close()
             z: 0 
         }
@@ -401,6 +411,26 @@ PanelWindow {
                     root.isCollapsed = false
                 }
             }
+        }
+
+        WindowPickerUI {
+            id: windowPicker
+            visible: root.captureMode === "window"
+            z: 2
+            anchors.centerIn: parent
+            anchors.verticalCenterOffset: -40
+            width: Math.min(640, parent.width - 40)
+            height: Math.min(480, parent.height - toolbar.idleH - 60)
+
+            onVisibleChanged: if (visible) activate()
+
+            onWindowSelected: function(identifier, title, appId) {
+                root.selectedWindowId = identifier
+                root.selectedWindowTitle = DesktopEntries.byId(appId)?.name ?? title ?? appId
+                keyHandler.forceActiveFocus()
+            }
+
+            onCancelled: root.close()
         }
 
         // ── 3. Cast Alert Toast (Top Layer, z: 10) ───────────
@@ -531,17 +561,17 @@ PanelWindow {
                 anchors.centerIn: parent
                 spacing: 8
 
-                IconButton { 
+                IconButton {
                     iconName: "camera"
                     isActive: root.isShot
                     activeAccent: Config.ssAccent
-                    onClicked: root.isShot = true 
+                    onClicked: root.isShot = true
                 }
-                IconButton { 
+                IconButton {
                     iconName: "video"
                     isActive: !root.isShot
                     activeAccent: Config.recAccent
-                    onClicked: root.isShot = false 
+                    onClicked: root.isShot = false
                 }
 
                 VDivider {}
@@ -555,10 +585,9 @@ PanelWindow {
                     border.width: root.captureMode === "region" ? 1 : 0
                     border.color: root.accent
 
-                    // This is the ONLY width behavior needed. It smoothly pushes the RowLayout.
-                    Behavior on Layout.preferredWidth { 
+                    Behavior on Layout.preferredWidth {
                         enabled: root.isLoaded
-                        NumberAnimation { duration: 350; easing.type: Easing.OutCubic } 
+                        NumberAnimation { duration: 350; easing.type: Easing.OutCubic }
                     }
 
                     RowLayout {
@@ -603,10 +632,60 @@ PanelWindow {
                     }
                 }
 
-                IconButton { 
-                    iconName: "app-window"
-                    isActive: root.captureMode === "window"
-                    onClicked: root.captureMode = "window" 
+                Rectangle {
+                    id: windowBtn
+                    height: 36
+                    Layout.preferredWidth: (root.captureMode === "window" && root.selectedWindowId !== "") ? windowBtnRow.implicitWidth + 16 : 36
+                    radius: 18
+                    color: root.captureMode === "window" ? Qt.rgba(root.accent.r, root.accent.g, root.accent.b, 0.15) : "transparent"
+                    border.width: root.captureMode === "window" ? 1 : 0
+                    border.color: root.accent
+
+                    Behavior on Layout.preferredWidth {
+                        enabled: root.isLoaded
+                        NumberAnimation { duration: 350; easing.type: Easing.OutCubic }
+                    }
+
+                    RowLayout {
+                        id: windowBtnRow
+                        anchors.centerIn: parent
+                        spacing: 5
+
+                        Icon {
+                            name: "app-window"
+                            size: 20
+                            color: root.captureMode === "window" ? root.accent : Config.textMuted
+                        }
+
+                        Text {
+                            visible: root.captureMode === "window" && root.selectedWindowId !== ""
+                            text: root.selectedWindowTitle
+                            font.pixelSize: 10
+                            font.weight: Font.DemiBold
+                            color: root.accent
+                            Layout.rightMargin: 2
+                            elide: Text.ElideRight
+                            Layout.maximumWidth: 120
+                        }
+
+                        Icon {
+                            visible: root.captureMode === "window" && root.selectedWindowId !== ""
+                            name: "restore"
+                            size: 12
+                            color: root.accent
+                            opacity: 0.7
+                            Layout.rightMargin: 2
+                        }
+                    }
+
+                    MouseArea {
+                        anchors.fill: parent
+                        cursorShape: Qt.PointingHandCursor
+                        onClicked: {
+                            root.captureMode = "window"
+                            root.selectedWindowId = ""
+                        }
+                    }
                 }
                 IconButton { 
                     iconName: "device-desktop"
@@ -631,7 +710,11 @@ PanelWindow {
 
                 IconButton {
                     isPrimary: true
-                    iconName: root.captureMode === "region" && !regionSelector.hasSelection ? "crop" : root.isShot ? "camera-up" : "player-record"
+                    iconName: {
+                        if (root.captureMode === "region" && !regionSelector.hasSelection) return "crop"
+                        if (root.captureMode === "window" && root.selectedWindowId === "") return "app-window"
+                        return root.isShot ? "camera-up" : "player-record"
+                    }
                     onClicked: root.executeAction()
                 }
             }
