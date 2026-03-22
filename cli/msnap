@@ -67,13 +67,13 @@ msnap_shot_usage() {
     # :flag.usage
     printf "  %s\n" "--region, -r"
     printf "    Take screenshot of selected region (interactive selection)\n"
-    printf "    %s\n" "Conflicts: --geometry, --window"
+    printf "    %s\n" "Conflicts: --geometry, --window, --window-id"
     echo
 
     # :flag.usage
     printf "  %s\n" "--geometry, -g X,Y WXH"
     printf "    Capture region with direct geometry\n"
-    printf "    %s\n" "Conflicts: --region, --window"
+    printf "    %s\n" "Conflicts: --region, --window, --window-id"
     echo
 
     # :flag.usage
@@ -98,8 +98,14 @@ msnap_shot_usage() {
 
     # :flag.usage
     printf "  %s\n" "--window, -w"
-    printf "    Capture screenshot of the active window\n"
-    printf "    %s\n" "Conflicts: --region, --geometry"
+    printf "    Capture screenshot of a window (opens interactive picker)\n"
+    printf "    %s\n" "Conflicts: --region, --geometry, --window-id"
+    echo
+
+    # :flag.usage
+    printf "  %s\n" "--window-id, -W IDENTIFIER"
+    printf "    Capture a specific window by its Wayland identifier\n"
+    printf "    %s\n" "Conflicts: --region, --geometry, --window"
     echo
 
     # :flag.usage
@@ -143,13 +149,25 @@ msnap_cast_usage() {
     # :flag.usage
     printf "  %s\n" "--region, -r"
     printf "    Record selected region (interactive selection)\n"
-    printf "    %s\n" "Conflicts: --geometry"
+    printf "    %s\n" "Conflicts: --geometry, --window, --window-id"
     echo
 
     # :flag.usage
     printf "  %s\n" "--geometry, -g X,Y WXH"
     printf "    Record region with direct geometry\n"
-    printf "    %s\n" "Conflicts: --region"
+    printf "    %s\n" "Conflicts: --region, --window, --window-id"
+    echo
+
+    # :flag.usage
+    printf "  %s\n" "--window, -w"
+    printf "    Record a window (opens interactive picker)\n"
+    printf "    %s\n" "Conflicts: --region, --geometry, --window-id"
+    echo
+
+    # :flag.usage
+    printf "  %s\n" "--window-id, -W IDENTIFIER"
+    printf "    Record a specific window by its Wayland identifier\n"
+    printf "    %s\n" "Conflicts: --region, --geometry, --window"
     echo
 
     # :flag.usage
@@ -522,58 +540,69 @@ msnap_shot_command() {
   { [[ ${ini[shot_pointer_default]} == true ]] || [[ ${args[--pointer]} ]]; } && use_pointer=true
   [[ $use_pointer ]] && cmd+=(-c)
 
-  if [[ ${args[--window]} ]]; then
-    if ! command -v mmsg >/dev/null 2>&1; then
-      echo "missing dependency: mmsg (required for --window)" >&2
+  if [[ ${args[--window]} || ${args[--window-id]} ]]; then
+    if [[ ${args[--window-id]} ]]; then
+      echo "${args[--window-id]}" > /tmp/xdpw-target-window-id
+    else
+      rm -f /tmp/xdpw-target-window-id
+    fi
+
+    CAPTURE_SCRIPT="${MSNAP_LIB_DIR:-/usr/local/share/msnap}/scripts/capture_window.py"
+    if [[ ! -f "$CAPTURE_SCRIPT" ]]; then
+      echo "Error: capture_window.py not found at $CAPTURE_SCRIPT" >&2
       exit 1
     fi
-    geometry=$(mmsg -x | awk '/x / {x=$3} /y / {y=$3} /width / {w=$3} /height / {h=$3} END {print x","y" "w"x"h}')
-    if [[ -z "$geometry" ]]; then
-      echo "Error: No active window found or mmsg failed." >&2
+
+    python3 "$CAPTURE_SCRIPT" "$filepath"
+    if [[ $? -ne 0 ]]; then
+      echo "Error: Window capture failed." >&2
       exit 1
     fi
-    cmd+=(-g "$geometry")
+
+    captured_via_portal=true
   elif [[ ${args[--geometry]} ]]; then
     cmd+=(-g "${args[--geometry]}")
   fi
 
-  if [[ ${args[--freeze]} ]]; then
-    if ! command -v wayfreeze >/dev/null 2>&1; then
-      echo "missing dependency: wayfreeze (required for --freeze)" >&2
-      exit 1
-    fi
-    wayfreeze_cmd=(wayfreeze)
-    [[ -z $use_pointer ]] && wayfreeze_cmd+=(--hide-cursor)
-    trap 'kill $wayfreeze_pid 2>/dev/null || true; rm -f "$pipe"' EXIT
-    pipe=$(mktemp -u).fifo
-    mkfifo "$pipe"
-    if [[ ${args[--region]} ]]; then
-      "${wayfreeze_cmd[@]}" --after-freeze-timeout 100 --after-freeze-cmd "echo > $pipe" &
-      wayfreeze_pid=$!
-      read -r < "$pipe"
-      geometry=$(slurp -d)
-      if [[ -z "$geometry" ]]; then
-        trap - EXIT
-        kill $wayfreeze_pid 2>/dev/null || true
-        rm -f "$pipe"
+  if [[ -z "${captured_via_portal:-}" ]]; then
+    if [[ ${args[--freeze]} ]]; then
+      if ! command -v wayfreeze >/dev/null 2>&1; then
+        echo "missing dependency: wayfreeze (required for --freeze)" >&2
         exit 1
       fi
+      wayfreeze_cmd=(wayfreeze)
+      [[ -z $use_pointer ]] && wayfreeze_cmd+=(--hide-cursor)
+      trap 'kill $wayfreeze_pid 2>/dev/null || true; rm -f "$pipe"' EXIT
+      pipe=$(mktemp -u).fifo
+      mkfifo "$pipe"
+      if [[ ${args[--region]} ]]; then
+        "${wayfreeze_cmd[@]}" --after-freeze-timeout 100 --after-freeze-cmd "echo > $pipe" &
+        wayfreeze_pid=$!
+        read -r < "$pipe"
+        geometry=$(slurp -d)
+        if [[ -z "$geometry" ]]; then
+          trap - EXIT
+          kill $wayfreeze_pid 2>/dev/null || true
+          rm -f "$pipe"
+          exit 1
+        fi
+        "${cmd[@]}" -g "$geometry" "$filepath"
+      else
+        "${wayfreeze_cmd[@]}" --after-freeze-timeout 100 --after-freeze-cmd "echo > $pipe" &
+        wayfreeze_pid=$!
+        read -r < "$pipe"
+        "${cmd[@]}" "$filepath"
+      fi
+      trap - EXIT
+      kill $wayfreeze_pid 2>/dev/null || true
+      rm -f "$pipe"
+    elif [[ ${args[--region]} ]]; then
+      geometry=$(slurp -d)
+      [[ -z "$geometry" ]] && exit 1
       "${cmd[@]}" -g "$geometry" "$filepath"
     else
-      "${wayfreeze_cmd[@]}" --after-freeze-timeout 100 --after-freeze-cmd "echo > $pipe" &
-      wayfreeze_pid=$!
-      read -r < "$pipe"
       "${cmd[@]}" "$filepath"
     fi
-    trap - EXIT
-    kill $wayfreeze_pid 2>/dev/null || true
-    rm -f "$pipe"
-  elif [[ ${args[--region]} ]]; then
-    geometry=$(slurp -d)
-    [[ -z "$geometry" ]] && exit 1
-    "${cmd[@]}" -g "$geometry" "$filepath"
-  else
-    "${cmd[@]}" "$filepath"
   fi
 
   if [[ ${args[--annotate]} ]]; then
@@ -614,7 +643,14 @@ msnap_cast_command() {
       geometry="$(slurp -d)" || { echo "Error: Failed to select region" >&2; exit 1; }
     fi
     cmd=(gpu-screen-recorder)
-    if [[ -n "$geometry" ]]; then
+    if [[ ${args[--window]} || ${args[--window-id]} ]]; then
+      if [[ ${args[--window-id]} ]]; then
+        echo "${args[--window-id]}" > /tmp/xdpw-target-window-id
+      else
+        rm -f /tmp/xdpw-target-window-id
+      fi
+      cmd+=(-w portal)
+    elif [[ -n "$geometry" ]]; then
       local x y w h
       IFS=',x ' read -r x y w h <<< "$geometry"
       cmd+=(-w region -region "${w}x${h}+${x}+${y}")
@@ -1048,6 +1084,14 @@ msnap_shot_parse_requirements() {
     deps['notify-send']="$(command -v notify-send | head -n1)"
   fi
 
+  # :dependency.filter
+  if ! command -v python3 >/dev/null 2>&1; then
+    printf "missing dependency: python3\n" >&2
+    missing_deps=1
+  else
+    deps['python3']="$(command -v python3 | head -n1)"
+  fi
+
   if [[ -n $missing_deps ]]; then
     exit 1
   fi
@@ -1062,7 +1106,7 @@ msnap_shot_parse_requirements() {
       # :flag.case
       --region | -r)
         # :flag.conflicts
-        for conflict in --geometry --window; do
+        for conflict in --geometry --window --window-id; do
           if [[ -n "${args[$conflict]:-}" ]]; then
             printf "conflicting options: %s cannot be used with %s\n" "$key" "$conflict" >&2
             exit 1
@@ -1077,7 +1121,7 @@ msnap_shot_parse_requirements() {
       # :flag.case
       --geometry | -g)
         # :flag.conflicts
-        for conflict in --region --window; do
+        for conflict in --region --window --window-id; do
           if [[ -n "${args[$conflict]:-}" ]]; then
             printf "conflicting options: %s cannot be used with %s\n" "$key" "$conflict" >&2
             exit 1
@@ -1142,7 +1186,7 @@ msnap_shot_parse_requirements() {
       # :flag.case
       --window | -w)
         # :flag.conflicts
-        for conflict in --region --geometry; do
+        for conflict in --region --geometry --window-id; do
           if [[ -n "${args[$conflict]:-}" ]]; then
             printf "conflicting options: %s cannot be used with %s\n" "$key" "$conflict" >&2
             exit 1
@@ -1152,6 +1196,27 @@ msnap_shot_parse_requirements() {
         # :flag.case_no_arg
         args['--window']=1
         shift
+        ;;
+
+      # :flag.case
+      --window-id | -W)
+        # :flag.conflicts
+        for conflict in --region --geometry --window; do
+          if [[ -n "${args[$conflict]:-}" ]]; then
+            printf "conflicting options: %s cannot be used with %s\n" "$key" "$conflict" >&2
+            exit 1
+          fi
+        done
+
+        # :flag.case_arg
+        if [[ -n ${2+x} ]]; then
+          args['--window-id']="$2"
+          shift
+          shift
+        else
+          printf "%s\n" "--window-id requires an argument: --window-id, -W IDENTIFIER" >&2
+          exit 1
+        fi
         ;;
 
       # :flag.case
@@ -1275,10 +1340,12 @@ msnap_cast_parse_requirements() {
       # :flag.case
       --region | -r)
         # :flag.conflicts
-        if [[ -n "${args['--geometry']:-}" ]]; then
-          printf "conflicting options: %s cannot be used with %s\n" "$key" "--geometry" >&2
-          exit 1
-        fi
+        for conflict in --geometry --window --window-id; do
+          if [[ -n "${args[$conflict]:-}" ]]; then
+            printf "conflicting options: %s cannot be used with %s\n" "$key" "$conflict" >&2
+            exit 1
+          fi
+        done
 
         # :flag.case_no_arg
         args['--region']=1
@@ -1288,10 +1355,12 @@ msnap_cast_parse_requirements() {
       # :flag.case
       --geometry | -g)
         # :flag.conflicts
-        if [[ -n "${args['--region']:-}" ]]; then
-          printf "conflicting options: %s cannot be used with %s\n" "$key" "--region" >&2
-          exit 1
-        fi
+        for conflict in --region --window --window-id; do
+          if [[ -n "${args[$conflict]:-}" ]]; then
+            printf "conflicting options: %s cannot be used with %s\n" "$key" "$conflict" >&2
+            exit 1
+          fi
+        done
 
         # :flag.case_arg
         if [[ -n ${2+x} ]]; then
@@ -1300,6 +1369,42 @@ msnap_cast_parse_requirements() {
           shift
         else
           printf "%s\n" "--geometry requires an argument: --geometry, -g X,Y WXH" >&2
+          exit 1
+        fi
+        ;;
+
+      # :flag.case
+      --window | -w)
+        # :flag.conflicts
+        for conflict in --region --geometry --window-id; do
+          if [[ -n "${args[$conflict]:-}" ]]; then
+            printf "conflicting options: %s cannot be used with %s\n" "$key" "$conflict" >&2
+            exit 1
+          fi
+        done
+
+        # :flag.case_no_arg
+        args['--window']=1
+        shift
+        ;;
+
+      # :flag.case
+      --window-id | -W)
+        # :flag.conflicts
+        for conflict in --region --geometry --window; do
+          if [[ -n "${args[$conflict]:-}" ]]; then
+            printf "conflicting options: %s cannot be used with %s\n" "$key" "$conflict" >&2
+            exit 1
+          fi
+        done
+
+        # :flag.case_arg
+        if [[ -n ${2+x} ]]; then
+          args['--window-id']="$2"
+          shift
+          shift
+        else
+          printf "%s\n" "--window-id requires an argument: --window-id, -W IDENTIFIER" >&2
           exit 1
         fi
         ;;
@@ -1677,7 +1782,7 @@ msnap_update_parse_requirements() {
 
 # :command.initialize
 initialize() {
-  declare -g version="0.3.0"
+  declare -g version="0.3.1"
   set -e
 
   # src/initialize.sh

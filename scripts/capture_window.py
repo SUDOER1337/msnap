@@ -58,11 +58,11 @@ def portal_request(bus, method, params_variant, expected_key=None):
     return result_data
 
 
-def capture_frame(node_id, output_file="captured_window.jpg", timeout_sec=10):
+def capture_frame(node_id, output_file, timeout_sec=10):
     """Extract a single frame from the PipeWire node using GStreamer."""
     pipeline_str = (
         f"pipewiresrc path={node_id} num-buffers=1 ! "
-        f"videoconvert ! jpegenc ! filesink location={output_file}"
+        f"videoconvert ! pngenc ! filesink location={output_file}"
     )
     pipeline = Gst.parse_launch(pipeline_str)
     pipeline.set_state(Gst.State.PLAYING)
@@ -90,15 +90,19 @@ def capture_frame(node_id, output_file="captured_window.jpg", timeout_sec=10):
 
 def main():
     if len(sys.argv) != 2:
-        print(f"Usage: {sys.argv[0]} <window_id>", file=sys.stderr)
+        print(f"Usage: {sys.argv[0]} <output_file>", file=sys.stderr)
         sys.exit(1)
 
-    target_window_id = sys.argv[1]
+    output_file = sys.argv[1]
     tmp_file = "/tmp/xdpw-target-window-id"
 
-    # Write target ID for the external bash chooser
-    with open(tmp_file, "w") as f:
-        f.write(target_window_id)
+    target_window_id = None
+    with contextlib.suppress(FileNotFoundError):
+        target_window_id = open(tmp_file).read().strip()
+
+    if not target_window_id:
+        print("Error: No window selected (tmp file not found or empty)", file=sys.stderr)
+        sys.exit(1)
 
     bus = Gio.bus_get_sync(Gio.BusType.SESSION, None)
     Gst.init(None)
@@ -123,10 +127,6 @@ def main():
             }))
         )
 
-        # Clean up temp file instantly to prevent race conditions
-        with contextlib.suppress(FileNotFoundError):
-            os.remove(tmp_file)
-
         # 3. Start Session
         res = portal_request(
             bus, "Start",
@@ -136,8 +136,7 @@ def main():
         node_id = res["streams"][0][0]
 
         # 4. Extract Frame
-        if capture_frame(node_id):
-            print("✓ Frame captured successfully: captured_window.jpg")
+        if capture_frame(node_id, output_file):
             sys.exit(0)
         else:
             sys.exit(1)

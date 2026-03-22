@@ -65,7 +65,6 @@ install: build
 	# Install msnap scripts
 	install -d $(SCRIPTS_DIR)
 	install -m755 scripts/capture_window.py $(SCRIPTS_DIR)/
-	install -m755 scripts/record_window.sh $(SCRIPTS_DIR)/
 
 	# Install portal chooser script
 	install -m755 assets/xdpw_chooser.sh.build $(APP_DIR)/xdpw_chooser.sh

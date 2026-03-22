@@ -213,7 +213,7 @@ PanelWindow {
             const rh = Math.round(regionSelector.selH * sf)
             a.push("-g", `${rx},${ry} ${rw}x${rh}`)
         } else if (captureMode === "window" && selectedWindowId !== "") {
-            a.push("-w", selectedWindowId)
+            a.push("-W", selectedWindowId)
         }
         if (forShot) {
             if (optPointer) a.push("-p")

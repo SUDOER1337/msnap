@@ -10,16 +10,17 @@ commands:
     - slurp
     - wl-copy
     - notify-send
+    - python3
   flags:
   - long: --region
     short: -r
     help: Take screenshot of selected region (interactive selection)
-    conflicts: [--geometry, --window]
+    conflicts: [--geometry, --window, --window-id]
   - long: --geometry
     short: -g
     arg: x,y WxH
     help: Capture region with direct geometry
-    conflicts: [--region, --window]
+    conflicts: [--region, --window, --window-id]
     validate: geometry_format
   - long: --pointer
     short: -p
@@ -37,8 +38,13 @@ commands:
     help: Annotate the screenshot with Satty
   - long: --window
     short: -w
-    help: Capture screenshot of the active window
-    conflicts: [--region, --geometry]
+    help: Capture screenshot of a window (opens portal picker)
+    conflicts: [--region, --geometry, --window-id]
+  - long: --window-id
+    short: -W
+    arg: identifier
+    help: Capture a specific window by its Wayland identifier
+    conflicts: [--region, --geometry, --window]
   - long: --no-copy
     short: -n
     help: Skip copying screenshot to clipboard
@@ -60,13 +66,22 @@ commands:
   - long: --region
     short: -r
     help: Record selected region (interactive selection)
-    conflicts: [--geometry]
+    conflicts: [--geometry, --window, --window-id]
   - long: --geometry
     short: -g
     arg: x,y WxH
     help: Record region with direct geometry
-    conflicts: [--region]
+    conflicts: [--region, --window, --window-id]
     validate: geometry_format
+  - long: --window
+    short: -w
+    help: Record a window (opens portal picker)
+    conflicts: [--region, --geometry, --window-id]
+  - long: --window-id
+    short: -W
+    arg: identifier
+    help: Record a specific window by its Wayland identifier
+    conflicts: [--region, --geometry, --window]
   - long: --toggle
     short: -t
     help: Toggle recording on/off

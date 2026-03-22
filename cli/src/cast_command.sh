@@ -11,7 +11,14 @@ build_cmd() {
     geometry="$(slurp -d)" || { echo "Error: Failed to select region" >&2; exit 1; }
   fi
   cmd=(gpu-screen-recorder)
-  if [[ -n "$geometry" ]]; then
+  if [[ ${args[--window]} || ${args[--window-id]} ]]; then
+    if [[ ${args[--window-id]} ]]; then
+      echo "${args[--window-id]}" > /tmp/xdpw-target-window-id
+    else
+      rm -f /tmp/xdpw-target-window-id
+    fi
+    cmd+=(-w portal)
+  elif [[ -n "$geometry" ]]; then
     local x y w h
     IFS=',x ' read -r x y w h <<< "$geometry"
     cmd+=(-w region -region "${w}x${h}+${x}+${y}")
