@@ -39,4 +39,13 @@ echo "Removed $removed file(s)."
 
 rm -f "$manifest" && echo "Removed manifest: $manifest" || echo "Failed to remove manifest: $manifest" >&2
 
+# Restore portal config backup or remove msnap-installed config
+PORTAL_CONFIG_DIR="/home/atheeq/.config/xdg-desktop-portal-wlr"
+if [[ -f "${PORTAL_CONFIG_DIR}/config.bak" ]]; then
+    mv "${PORTAL_CONFIG_DIR}/config.bak" "${PORTAL_CONFIG_DIR}/config"
+    echo "Restored portal config from backup."
+else
+    rm -f "${PORTAL_CONFIG_DIR}/config"
+fi
+
 echo "msnap uninstalled."

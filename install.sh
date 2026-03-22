@@ -77,6 +77,29 @@ fetch_source() {
     fi
 }
 
+setup_portal_config() {
+    local dest_dir="/home/atheeq/.config/xdg-desktop-portal-wlr"
+    local chooser_path
+    
+    if [[ "$install_type" == "system" ]]; then
+        chooser_path="/usr/local/share/msnap/xdpw_chooser.sh"
+    else
+        chooser_path="$HOME/.local/share/msnap/xdpw_chooser.sh"
+    fi
+    
+    mkdir -p "$dest_dir"
+    
+    if [[ -f "$dest_dir/config" ]]; then
+        cp "$dest_dir/config" "$dest_dir/config.bak"
+        success "Backed up existing config to config.bak"
+    fi
+    
+    sed "s|@CHOOSER_PATH@|${chooser_path}|g" \
+        "${src_dir}/assets/xdpw_config.ini" > "${TMP_DIR}/xdpw_config.build"
+    cp "${TMP_DIR}/xdpw_config.build" "$dest_dir/config"
+    success "Portal config installed to $dest_dir/config"
+}
+
 main() {
     echo -e "${BOLD}${GREEN}>>> msnap installer${NC}\n"
     check_deps
@@ -112,8 +135,8 @@ main() {
     fi
 
     info "Preparing build environment..."
-    rm -f msnap.desktop Config.qml.build msnap.build 2>/dev/null || \
-    sudo rm -f msnap.desktop Config.qml.build msnap.build 2>/dev/null || true
+    rm -f msnap.desktop Config.qml.build msnap.build xdpw_config.build 2>/dev/null || \
+    sudo rm -f msnap.desktop Config.qml.build msnap.build xdpw_config.build 2>/dev/null || true
 
     info "Building msnap..."
     run_quiet make build "${make_args[@]}"
@@ -130,6 +153,9 @@ main() {
             warn "Please add \$HOME/.local/bin to your PATH in ~/.bashrc or ~/.zshrc"
         fi
     fi
+
+    info "Setting up xdg-desktop-portal-wlr integration..."
+    setup_portal_config
 
     info "Cleaning up..."
     run_quiet make clean

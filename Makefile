@@ -11,6 +11,7 @@ ICON_PATH ?= $(DATADIR)/icons/hicolor/scalable/apps/msnap.svg
 # Installation Directories
 APP_DIR = $(DESTDIR)$(DATADIR)/msnap
 GUI_DIR = $(APP_DIR)/gui
+SCRIPTS_DIR = $(APP_DIR)/scripts
 ICON_DIR = $(DESTDIR)$(DATADIR)/icons/hicolor/scalable/apps
 DESKTOP_DIR = $(DESTDIR)$(DATADIR)/applications
 CONFIG_DIR = $(DESTDIR)$(SYSCONFDIR)/msnap
@@ -32,6 +33,8 @@ build:
 		-e "s|@VERSION@|$(VERSION)|g" \
 		-e "s|@MANIFEST_PATH@|$(MANIFEST)|g" \
 		cli/msnap > msnap.build
+	sed "s|@CHOOSER_PATH@|$(DATADIR)/msnap/xdpw_chooser.sh|g" \
+		assets/xdpw_config.ini > xdpw_config.build
 
 install: build
 	@echo "Installing msnap..."
@@ -57,13 +60,23 @@ install: build
 	install -m644 msnap.desktop $(DESKTOP_DIR)/msnap.desktop
 	install -m644 assets/icons/msnap.svg $(ICON_DIR)/msnap.svg
 
+	# Install msnap scripts
+	install -d $(SCRIPTS_DIR)
+	install -m755 scripts/capture_window.py $(SCRIPTS_DIR)/
+	install -m755 scripts/record_window.sh $(SCRIPTS_DIR)/
+
+	# Install portal chooser script
+	install -m755 assets/xdpw_chooser.sh $(APP_DIR)/xdpw_chooser.sh
+
 	# Write manifest
 	@install -d $(DESTDIR)$(STATEDIR)/msnap
 	@{ \
 		echo "$(DESTDIR)$(BINDIR)/msnap"; \
 		find $(GUI_DIR) -type f | sort; \
+		find $(SCRIPTS_DIR) -type f | sort; \
 		echo "$(CONFIG_DIR)/msnap.conf"; \
 		echo "$(CONFIG_DIR)/gui.conf"; \
+		echo "$(APP_DIR)/xdpw_chooser.sh"; \
 		echo "$(DESKTOP_DIR)/msnap.desktop"; \
 		echo "$(ICON_DIR)/msnap.svg"; \
 	} > $(MANIFEST)
@@ -83,7 +96,7 @@ uninstall:
 	@echo "Done."
 
 clean:
-	rm -f msnap.desktop Config.qml.build msnap.build
+	rm -f msnap.desktop Config.qml.build msnap.build xdpw_config.build
 
 version:
 	@echo "$(VERSION)" > VERSION
