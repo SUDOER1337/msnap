@@ -331,7 +331,7 @@ PanelWindow {
         onVisibleChanged: if (visible) forceActiveFocus()
 
         function cycleTarget(dir) {
-            const modes = root.isShot ? ["region", "window", "screen"] : ["region", "screen"]
+            const modes = ["region", "window", "screen"]
             const i = modes.indexOf(root.captureMode)
             root.captureMode = modes[((i < 0 ? 0 : i) + dir + modes.length) % modes.length]
         }
@@ -359,7 +359,7 @@ PanelWindow {
             [Qt.Key_S]:     () => { root.isShot = true },
             [Qt.Key_V]:     () => { root.isShot = false },
             [Qt.Key_R]:     () => { root.captureMode = "region" },
-            [Qt.Key_W]:     () => { if (root.isShot) root.captureMode = "window" },
+            [Qt.Key_W]:     () => { root.captureMode = "window" },
             [Qt.Key_F]:     () => { root.captureMode = "screen" },
             [Qt.Key_P]:     () => { if (root.isShot)  root.optPointer  = !root.optPointer },
             [Qt.Key_E]:     () => { if (root.isShot)  root.optAnnotate = !root.optAnnotate },
@@ -606,7 +606,6 @@ PanelWindow {
                 IconButton { 
                     iconName: "app-window"
                     isActive: root.captureMode === "window"
-                    isEnabled: root.isShot
                     onClicked: root.captureMode = "window" 
                 }
                 IconButton { 
