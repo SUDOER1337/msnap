@@ -35,6 +35,8 @@ build:
 		cli/msnap > msnap.build
 	sed "s|@CHOOSER_PATH@|$(DATADIR)/msnap/xdpw_chooser.sh|g" \
 		assets/xdpw_config.ini > xdpw_config.build
+	sed "s|@GUI_PATH@|$(DATADIR)/msnap/gui|g" \
+		assets/xdpw_chooser.sh > assets/xdpw_chooser.sh.build
 
 install: build
 	@echo "Installing msnap..."
@@ -66,7 +68,7 @@ install: build
 	install -m755 scripts/record_window.sh $(SCRIPTS_DIR)/
 
 	# Install portal chooser script
-	install -m755 assets/xdpw_chooser.sh $(APP_DIR)/xdpw_chooser.sh
+	install -m755 assets/xdpw_chooser.sh.build $(APP_DIR)/xdpw_chooser.sh
 
 	# Write manifest
 	@install -d $(DESTDIR)$(STATEDIR)/msnap
@@ -96,7 +98,7 @@ uninstall:
 	@echo "Done."
 
 clean:
-	rm -f msnap.desktop Config.qml.build msnap.build xdpw_config.build
+	rm -f msnap.desktop Config.qml.build msnap.build xdpw_config.build assets/xdpw_chooser.sh.build
 
 version:
 	@echo "$(VERSION)" > VERSION
