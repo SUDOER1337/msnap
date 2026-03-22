@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 
 if [ -z "$1" ]; then
-    echo "Usage: $0 <lswt_window_identifier>"
+    echo "Usage: $0 <window_identifier>"
     exit 1
 fi
 
