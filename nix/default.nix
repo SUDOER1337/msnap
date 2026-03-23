@@ -3,6 +3,7 @@
   stdenvNoCC,
   makeBinaryWrapper,
   bash,
+  coreutils,
   grim,
   slurp,
   wl-clipboard,
@@ -12,10 +13,33 @@
   gpu-screen-recorder,
   ffmpeg,
   quickshell,
+  lswt,
+  python3,
+  glib,
+  gobject-introspection,
+  gst_all_1,
+  pipewire,
 }:
+let
+  pythonEnv = python3.withPackages (ps: with ps; [ pygobject3 ]);
+
+  giTypelibPath = lib.makeSearchPath "lib/girepository-1.0" [
+    glib
+    gobject-introspection
+    gst_all_1.gstreamer
+    gst_all_1.gst-plugins-base
+  ];
+
+  gstPluginPath = lib.makeSearchPath "lib/gstreamer-1.0" [
+    gst_all_1.gstreamer
+    gst_all_1.gst-plugins-base
+    gst_all_1.gst-plugins-good
+    pipewire
+  ];
+in
 stdenvNoCC.mkDerivation (finalAttrs: {
   pname = "msnap";
-  version = lib.trim (builtins.readFile ../VERSION);
+  version = lib.strings.trim (builtins.readFile ../VERSION);
 
   src = builtins.path {
     path = ../.;
@@ -47,6 +71,16 @@ stdenvNoCC.mkDerivation (finalAttrs: {
     substituteInPlace "$out/bin/msnap" \
       --replace-fail '#!/usr/bin/env bash' '#!${bash}/bin/bash'
 
+    substituteInPlace "$out/share/msnap/scripts/capture_window.py" \
+      --replace-fail '#!/usr/bin/env python3' '#!${pythonEnv}/bin/python3'
+
+    wrapProgram "$out/share/msnap/scripts/capture_window.py" \
+      --prefix GI_TYPELIB_PATH : "${giTypelibPath}" \
+      --prefix GST_PLUGIN_SYSTEM_PATH_1_0 : "${gstPluginPath}"
+
+    wrapProgram "$out/share/msnap/xdpw_chooser.sh" \
+      --prefix PATH : "${lib.makeBinPath [ bash coreutils quickshell ]}"
+
     wrapProgram "$out/bin/msnap" \
       --prefix PATH : ${lib.makeBinPath [
         grim
@@ -58,6 +92,7 @@ stdenvNoCC.mkDerivation (finalAttrs: {
         gpu-screen-recorder
         ffmpeg
         quickshell
+        lswt
       ]}
   '';
 
