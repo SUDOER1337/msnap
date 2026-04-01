@@ -51,7 +51,7 @@ get_install_type() {
     echo "  1) Current user only (~/.local) [Default]" >&2
     echo "  2) System-wide (/usr/local) [Requires sudo]" >&2
     echo "  3) Abort" >&2
-    read -rp "Enter choice [1]: " choice >&2
+    read -rp "Enter choice [1]: " choice </dev/tty >&2
 
     case "$choice" in
         2) echo "system" ;;
