@@ -81,7 +81,8 @@ fi
 tar -xzf "${tmp}/msnap.tar.gz" -C "$tmp" \
   || { echo "Error: Failed to extract archive." >&2; exit 1; }
 
-src="${tmp}/msnap-${target_version}"
+# Find the extracted directory (handles both version and commit hash formats)
+src=$(find "$tmp" -maxdepth 1 -type d -name "msnap-*" | head -n1)
 [[ -d "$src" ]] || { echo "Error: Unexpected archive layout." >&2; exit 1; }
 
 gui_dir=$(grep -m1 '\.qml$' "$manifest" | xargs dirname)

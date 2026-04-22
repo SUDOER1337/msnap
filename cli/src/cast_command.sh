@@ -31,7 +31,17 @@ build_cmd() {
 if [[ -f "$recording_pid_file" ]]; then
   pid=$(<"$recording_pid_file")
   if kill -0 "$pid" 2>/dev/null; then
-    kill -2 "$pid"
+    # Try SIGTERM first, then SIGKILL if process doesn't terminate
+    kill -15 "$pid" 2>/dev/null || true
+    local count=0
+    while kill -0 "$pid" 2>/dev/null && [[ $count -lt 5 ]]; do
+      sleep 0.2
+      ((count++))
+    done
+    # If still running, force kill
+    if kill -0 "$pid" 2>/dev/null; then
+      kill -9 "$pid" 2>/dev/null || true
+    fi
     wait "$pid" 2>/dev/null || true
   fi
   rm -f "$recording_pid_file" "/tmp/msnap-cast.starttime"

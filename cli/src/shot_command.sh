@@ -5,7 +5,8 @@ fi
 
 if [[ ${args[--only-copy]} ]]; then
   filepath="$(mktemp -t msnap-XXXXXX.png)"
-  find "$(dirname "$filepath")" -maxdepth 1 -name "msnap-*.png" -mmin +5 -delete 2>/dev/null &
+  # Clean up old temp files synchronously to avoid race conditions
+  find "$(dirname "$filepath")" -maxdepth 1 -name "msnap-*.png" -mmin +5 -delete 2>/dev/null || true
 else
   output_dir="${args[--output]:-${ini[shot_output_dir]:-${XDG_PICTURES_DIR:-$HOME/Pictures}/Screenshots}}"
   filename_pattern="${args[--filename]:-${ini[shot_filename_pattern]:-%Y%m%d%H%M%S.png}}"
@@ -42,29 +43,49 @@ if [[ ${args[--freeze]} ]]; then
   fi
   wayfreeze_cmd=(wayfreeze)
   [[ -z $use_pointer ]] && wayfreeze_cmd+=(--hide-cursor)
-  trap 'kill $wayfreeze_pid 2>/dev/null || true; rm -f "$pipe"' EXIT
   pipe=$(mktemp -u).fifo
   mkfifo "$pipe"
+  wayfreeze_pid=""
+  cleanup_wayfreeze() {
+    [[ -n "$wayfreeze_pid" ]] && kill "$wayfreeze_pid" 2>/dev/null || true
+    rm -f "$pipe"
+  }
+  trap cleanup_wayfreeze EXIT
+  
   if [[ ${args[--region]} ]]; then
     "${wayfreeze_cmd[@]}" --after-freeze-timeout 100 --after-freeze-cmd "echo > $pipe" &
     wayfreeze_pid=$!
-    read -r < "$pipe"
+    # Add 10 second timeout to prevent indefinite blocking if wayfreeze hangs
+    if ! read -t 10 -r < "$pipe"; then
+      echo "Error: wayfreeze timeout" >&2
+      kill "$wayfreeze_pid" 2>/dev/null || true
+      rm -f "$pipe"
+      trap - EXIT
+      exit 1
+    fi
     geometry=$(slurp -d)
     if [[ -z "$geometry" ]]; then
-      trap - EXIT
-      kill $wayfreeze_pid 2>/dev/null || true
+      kill "$wayfreeze_pid" 2>/dev/null || true
       rm -f "$pipe"
+      trap - EXIT
       exit 1
     fi
     "${cmd[@]}" -g "$geometry" "$filepath"
   else
     "${wayfreeze_cmd[@]}" --after-freeze-timeout 100 --after-freeze-cmd "echo > $pipe" &
     wayfreeze_pid=$!
-    read -r < "$pipe"
+    # Add 10 second timeout to prevent indefinite blocking if wayfreeze hangs
+    if ! read -t 10 -r < "$pipe"; then
+      echo "Error: wayfreeze timeout" >&2
+      kill "$wayfreeze_pid" 2>/dev/null || true
+      rm -f "$pipe"
+      trap - EXIT
+      exit 1
+    fi
     "${cmd[@]}" "$filepath"
   fi
   trap - EXIT
-  kill $wayfreeze_pid 2>/dev/null || true
+  kill "$wayfreeze_pid" 2>/dev/null || true
   rm -f "$pipe"
 elif [[ ${args[--region]} ]]; then
   geometry=$(slurp -d)

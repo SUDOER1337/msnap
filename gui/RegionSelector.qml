@@ -34,9 +34,24 @@ Item {
 
     readonly property bool hasSelection: selW > 4 && selH > 4
 
-    readonly property color overlayMask: Qt.rgba(Config.overlayColor.r, Config.overlayColor.g, Config.overlayColor.b, Config.overlayAlpha)
-    readonly property color dimLabelBg: Qt.rgba(Config.dimLabelBg.r, Config.dimLabelBg.g, Config.dimLabelBg.b, Config.dimLabelAlpha)
-    readonly property color instructionTextColor: Qt.rgba(Config.instructionColor.r, Config.instructionColor.g, Config.instructionColor.b, Config.instructionAlpha)
+    readonly property color overlayMask: Qt.rgba(
+        Config.overlayColor.r,
+        Config.overlayColor.g,
+        Config.overlayColor.b,
+        Config.overlayAlpha
+    )
+    readonly property color dimLabelBg: Qt.rgba(
+        Config.dimLabelBg.r,
+        Config.dimLabelBg.g,
+        Config.dimLabelBg.b,
+        Config.dimLabelAlpha
+    )
+    readonly property color instructionTextColor: Qt.rgba(
+        Config.instructionColor.r,
+        Config.instructionColor.g,
+        Config.instructionColor.b,
+        Config.instructionAlpha
+    )
 
     readonly property var handlePositions: [
         { x: 0, y: 0, cursor: Qt.SizeFDiagCursor }, 

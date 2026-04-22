@@ -378,7 +378,21 @@ ini_load() {
     elif [[ $line =~ $key_regex ]]; then
       key="${BASH_REMATCH[1]}"
       value="${BASH_REMATCH[2]}"
-      [[ $value == *\$* ]] && eval "value=\"$value\""
+      # Safe variable expansion - only expand $HOME and $XDG_* variables
+      if [[ $value == *\$* ]]; then
+        # Only allow specific safe variables
+        if [[ $value == *\$HOME* ]]; then
+          value="${value//\$HOME/$HOME}"
+        elif [[ $value == *\$XDG_CONFIG_HOME* ]]; then
+          value="${value//\$XDG_CONFIG_HOME/${XDG_CONFIG_HOME:-$HOME/.config}}"
+        elif [[ $value == *\$XDG_DATA_HOME* ]]; then
+          value="${value//\$XDG_DATA_HOME/${XDG_DATA_HOME:-$HOME/.local/share}}"
+        elif [[ $value == *\$XDG_PICTURES_DIR* ]]; then
+          value="${value//\$XDG_PICTURES_DIR/${XDG_PICTURES_DIR:-$HOME/Pictures}}"
+        elif [[ $value == *\$XDG_VIDEOS_DIR* ]]; then
+          value="${value//\$XDG_VIDEOS_DIR/${XDG_VIDEOS_DIR:-$HOME/Videos}}"
+        fi
+      fi
       ini["${section}${key}"]="$value"
     fi
   done <"$ini_file"
